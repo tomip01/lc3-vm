@@ -169,16 +169,16 @@ impl VM {
     }
 
     fn add(&mut self, instr: u16) -> Result<(), VMError> {
-        let immediate_flag = (instr >> 5) & 0x1;
-        let r0 = (instr >> 9) & 0x7;
-        let r1 = (instr >> 6) & 0x7;
+        let immediate_flag = (instr >> 5) & 1;
+        let r0 = (instr >> 9) & 0b0111;
+        let r1 = (instr >> 6) & 0b0111;
         let value_in_r1 = *self.get_register(r1)?;
         if immediate_flag == 1 {
-            let imm5 = sign_extend(instr & 0b11111, 5)?;
+            let imm5 = sign_extend(instr & 0b0001_1111, 5)?;
             let sum = value_in_r1.wrapping_add(imm5);
             self.set_register(r0, sum)?;
         } else {
-            let r2 = instr & 0x7;
+            let r2 = instr & 0b0111;
             let value_in_r2 = *self.get_register(r2)?;
             let sum = value_in_r1.wrapping_add(value_in_r2);
             self.set_register(r0, sum)?;
@@ -188,16 +188,16 @@ impl VM {
     }
 
     fn and(&mut self, instr: u16) -> Result<(), VMError> {
-        let immediate_flag = (instr >> 5) & 0x1;
-        let r0 = (instr >> 9) & 0x7;
-        let r1 = (instr >> 6) & 0x7;
+        let immediate_flag = (instr >> 5) & 1;
+        let r0 = (instr >> 9) & 0b0111;
+        let r1 = (instr >> 6) & 0b0111;
         let value_in_r1 = *self.get_register(r1)?;
         if immediate_flag == 1 {
             let imm5 = sign_extend(instr & 0b11111, 5)?;
             let res = value_in_r1 & imm5;
             self.set_register(r0, res)?;
         } else {
-            let r2 = instr & 0x7;
+            let r2 = instr & 0b0111;
             let value_in_r2 = *self.get_register(r2)?;
             let res = value_in_r1 & value_in_r2;
             self.set_register(r0, res)?;
@@ -207,8 +207,8 @@ impl VM {
     }
 
     fn not(&mut self, instr: u16) -> Result<(), VMError> {
-        let r0 = (instr >> 9) & 0x7;
-        let r1 = (instr >> 6) & 0x7;
+        let r0 = (instr >> 9) & 0b0111;
+        let r1 = (instr >> 6) & 0b0111;
         let value_in_r1 = *self.get_register(r1)?;
         self.set_register(r0, !value_in_r1)?;
         self.update_flags(r0)?;
@@ -216,8 +216,8 @@ impl VM {
     }
 
     fn br(&mut self, instr: u16) -> Result<(), VMError> {
-        let pc_offset = sign_extend(instr & 0x1FF, 9)?;
-        let cond_flag_instr = (instr >> 9) & 0x7;
+        let pc_offset = sign_extend(instr & 0b0001_1111_1111, 9)?;
+        let cond_flag_instr = (instr >> 9) & 0b0111;
         let meet_condition = match self.cond {
             ConditionFlag::Neg => cond_flag_instr & 0b100,
             ConditionFlag::Zro => cond_flag_instr & 0b010,
@@ -233,7 +233,7 @@ impl VM {
     }
 
     fn jmp(&mut self, instr: u16) -> Result<(), VMError> {
-        let r1 = (instr >> 6) & 0x7;
+        let r1 = (instr >> 6) & 0b0111;
         let value_in_r1 = *self.get_register(r1)?;
         self.pc = value_in_r1;
         Ok(())
@@ -371,7 +371,7 @@ mod tests {
         let mut vm = VM::new();
         vm.registers[1] = 0xFFFF;
         vm.and(instr)?;
-        assert_eq!(vm.registers[0], 0x7);
+        assert_eq!(vm.registers[0], 0b0111);
         assert_eq!(vm.cond, ConditionFlag::Pos);
         Ok(())
     }
