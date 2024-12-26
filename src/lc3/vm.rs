@@ -140,11 +140,11 @@ impl VM {
             match op {
                 Opcode::BR => self.br(instr)?,
                 Opcode::Add => self.add(instr)?,
-                Opcode::LD => todo!(),
+                Opcode::LD => self.ld(instr)?,
                 Opcode::ST => todo!(),
                 Opcode::Jsr => self.jsr(instr)?,
                 Opcode::And => self.and(instr)?,
-                Opcode::Ldr => todo!(),
+                Opcode::Ldr => self.ldr(instr)?,
                 Opcode::Str => todo!(),
                 Opcode::Rti => todo!(),
                 Opcode::Not => self.not(instr)?,
@@ -257,8 +257,9 @@ impl VM {
         }
         Ok(())
     }
+
     fn lea(&mut self, instr: u16) -> Result<(), VMError> {
-        let r0 = (instr >> 9) & 0b111;
+        let r0 = (instr >> 9) & 0b0111;
         let pc_offset = sign_extend(instr & 0b0001_1111_1111, 9)?;
         let value = self
             .pc
@@ -267,6 +268,37 @@ impl VM {
                 "Overflow in LEA offset addition",
             )))?;
         self.set_register(r0, value)?;
+        self.update_flags(r0)?;
+        Ok(())
+    }
+
+    fn ld(&mut self, instr: u16) -> Result<(), VMError> {
+        let r0 = (instr >> 9) & 0b0111;
+        let pc_offset = sign_extend(instr & 0b0001_1111_1111, 9)?;
+        let address = self
+            .pc
+            .checked_add(pc_offset)
+            .ok_or(VMError::Adding(String::from(
+                "Overflow in Load offset addition",
+            )))?;
+        let value_read = self.mem_read(address.into())?;
+        self.set_register(r0, value_read)?;
+        self.update_flags(r0)?;
+        Ok(())
+    }
+
+    fn ldr(&mut self, instr: u16) -> Result<(), VMError> {
+        let r0 = (instr >> 9) & 0b0111;
+        let r1 = (instr >> 6) & 0b0111;
+        let value_in_r1 = *self.get_register(r1)?;
+        let pc_offset = sign_extend(instr & 0b0011_1111, 6)?;
+        let address = value_in_r1
+            .checked_add(pc_offset)
+            .ok_or(VMError::Adding(String::from(
+                "Overflow in Load Register offset addition",
+            )))?;
+        let value_read = self.mem_read(address.into())?;
+        self.set_register(r0, value_read)?;
         self.update_flags(r0)?;
         Ok(())
     }
@@ -439,9 +471,30 @@ mod tests {
     #[test]
     fn lea_store_address() -> Result<(), VMError> {
         let mut vm = VM::new();
-        let instr: u16 = 0b1110_0000_0100_0010; // store in R0, PC plus 0x42
+        let instr: u16 = 0b1110_0000_0100_0010; // store in R0, PC + 0x42
         vm.lea(instr)?;
         assert_eq!(vm.registers[0], 0x3042);
+        Ok(())
+    }
+
+    #[test]
+    fn load_to_register() -> Result<(), VMError> {
+        let mut vm = VM::new();
+        let instr: u16 = 0b0010_0000_0100_0010; // load in R0, value stored in PC + 0x42
+        vm.memory[0x3042] = 0x4242;
+        vm.ld(instr)?;
+        assert_eq!(vm.registers[0], 0x4242);
+        Ok(())
+    }
+
+    #[test]
+    fn load_register_to_register() -> Result<(), VMError> {
+        let mut vm = VM::new();
+        let instr: u16 = 0b0110_0000_0100_0010; // load in R0, value stored in R1 + 0x02
+        vm.registers[1] = 0x3040;
+        vm.memory[0x3042] = 0x4242;
+        vm.ld(instr)?;
+        assert_eq!(vm.registers[0], 0x4242);
         Ok(())
     }
 }
