@@ -138,7 +138,7 @@ impl VM {
             let op: Opcode = (instr >> 12).try_into()?;
 
             match op {
-                Opcode::BR => todo!(),
+                Opcode::BR => self.br(instr)?,
                 Opcode::Add => self.add(instr)?,
                 Opcode::LD => todo!(),
                 Opcode::ST => todo!(),
@@ -150,7 +150,7 @@ impl VM {
                 Opcode::Not => self.not(instr)?,
                 Opcode::Ldi => todo!(),
                 Opcode::Sti => todo!(),
-                Opcode::Jmp => todo!(),
+                Opcode::Jmp => self.jmp(instr)?,
                 Opcode::Res => todo!(),
                 Opcode::Lea => todo!(),
                 Opcode::Trap => todo!(),
@@ -212,6 +212,30 @@ impl VM {
         let value_in_r1 = *self.get_register(r1)?;
         self.set_register(r0, !value_in_r1)?;
         self.update_flags(r0)?;
+        Ok(())
+    }
+
+    fn br(&mut self, instr: u16) -> Result<(), VMError> {
+        let pc_offset = sign_extend(instr & 0x1FF, 9)?;
+        let cond_flag_instr = (instr >> 9) & 0x7;
+        let meet_condition = match self.cond {
+            ConditionFlag::Neg => cond_flag_instr & 0b100,
+            ConditionFlag::Zro => cond_flag_instr & 0b010,
+            ConditionFlag::Pos => cond_flag_instr & 0b001,
+        };
+        if meet_condition != 0 {
+            self.pc = self
+                .pc
+                .checked_add(pc_offset)
+                .ok_or(VMError::Adding(String::from("Overflow in branching")))?;
+        }
+        Ok(())
+    }
+
+    fn jmp(&mut self, instr: u16) -> Result<(), VMError> {
+        let r1 = (instr >> 6) & 0x7;
+        let value_in_r1 = *self.get_register(r1)?;
+        self.pc = value_in_r1;
         Ok(())
     }
 }
@@ -328,6 +352,36 @@ mod tests {
         vm.not(instr)?;
         assert_eq!(vm.registers[0], 0xF0F0);
         assert_eq!(vm.cond, ConditionFlag::Neg);
+        Ok(())
+    }
+
+    #[test]
+    fn branch_on_flag() -> Result<(), VMError> {
+        let mut vm = VM::new();
+        vm.cond = ConditionFlag::Pos;
+        let instr: u16 = 0b0000_0010_0000_1010; // jump 10 places on positive flag
+        vm.br(instr)?;
+        assert_eq!(vm.pc, 0x300A);
+        Ok(())
+    }
+
+    #[test]
+    fn dont_branch_on_flag() -> Result<(), VMError> {
+        let mut vm = VM::new();
+        vm.cond = ConditionFlag::Neg;
+        let instr: u16 = 0b0000_0010_0000_1010; // jump 10 places on positive flag
+        vm.br(instr)?;
+        assert_eq!(vm.pc, 0x3000);
+        Ok(())
+    }
+
+    #[test]
+    fn jump_to_correct_value() -> Result<(), VMError> {
+        let mut vm = VM::new();
+        let instr: u16 = 0b1100_0000_0100_0000; // jump to value in R1
+        vm.registers[1] = 0x4242;
+        vm.jmp(instr)?;
+        assert_eq!(vm.pc, 0x4242);
         Ok(())
     }
 }
