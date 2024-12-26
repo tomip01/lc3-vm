@@ -18,8 +18,8 @@ pub struct VM {
 
 #[derive(Debug)]
 pub enum VMError {
-    ReadingFile,
-    ConcatenatingBytes,
+    ReadingFile(String),
+    ConcatenatingBytes(String),
     Adding,
 }
 
@@ -67,7 +67,8 @@ impl VM {
     }
 
     pub fn read_image(&mut self, image_path: &str) -> Result<(), VMError> {
-        let content = &fs::read(image_path).map_err(|_| VMError::ReadingFile)?;
+        let content = &fs::read(image_path)
+            .map_err(|_| VMError::ReadingFile(String::from("Error on reading from file path")))?;
         self.read_image_bytes(content)?;
         Ok(())
     }
@@ -75,11 +76,9 @@ impl VM {
     fn read_image_bytes(&mut self, bytes: &[u8]) -> Result<(), VMError> {
         let mut collected: Vec<u16> = Vec::new();
         let mut chunks_of_two_bytes = bytes.chunks_exact(2);
-        let origin: usize = Self::concatenate_bytes(
-            chunks_of_two_bytes
-                .next()
-                .ok_or(VMError::ConcatenatingBytes)?,
-        )?
+        let origin: usize = Self::concatenate_bytes(chunks_of_two_bytes.next().ok_or(
+            VMError::ConcatenatingBytes(String::from("No valid origin position from image")),
+        )?)?
         .into();
         for chunk in chunks_of_two_bytes {
             let concatenated = Self::concatenate_bytes(chunk)?;
@@ -88,7 +87,12 @@ impl VM {
 
         for (i, word) in collected.iter().enumerate() {
             let index = i.checked_add(origin).ok_or(VMError::Adding)?;
-            let value = self.memory.get_mut(index).ok_or(VMError::ReadingFile)?;
+            let value = self
+                .memory
+                .get_mut(index)
+                .ok_or(VMError::ReadingFile(String::from(
+                    "Image exceeds memory capacity",
+                )))?;
             *value = *word;
         }
 
@@ -97,11 +101,23 @@ impl VM {
 
     fn concatenate_bytes(bytes: &[u8]) -> Result<u16, VMError> {
         if bytes.len() != 2 {
-            return Err(VMError::ConcatenatingBytes);
+            return Err(VMError::ConcatenatingBytes(String::from(
+                "Image file is not made from words of 16 bits",
+            )));
         }
-        let mut res: u16 = (*bytes.first().ok_or(VMError::ConcatenatingBytes)?).into();
+        let mut res: u16 = (*bytes
+            .first()
+            .ok_or(VMError::ConcatenatingBytes(String::from(
+                "Non existing first bytes",
+            )))?)
+        .into();
         res <<= 8;
-        let second_byte: u16 = (*bytes.get(1).ok_or(VMError::ConcatenatingBytes)?).into();
+        let second_byte: u16 = (*bytes
+            .get(1)
+            .ok_or(VMError::ConcatenatingBytes(String::from(
+                "Non existing second bytes",
+            )))?)
+        .into();
         res |= second_byte;
         Ok(res)
     }
