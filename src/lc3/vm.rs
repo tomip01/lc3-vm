@@ -67,8 +67,9 @@ impl VM {
     }
 
     pub fn read_image(&mut self, image_path: &str) -> Result<(), VMError> {
-        let content = &fs::read(image_path)
-            .map_err(|_| VMError::ReadingFile(String::from("Error on reading from file path")))?;
+        let content = &fs::read(image_path).map_err(|e| {
+            VMError::ReadingFile(format!("Failed to read file {}: {}", image_path, e))
+        })?;
         self.read_image_bytes(content)?;
         Ok(())
     }
@@ -105,20 +106,17 @@ impl VM {
                 "Image file is not made from words of 16 bits",
             )));
         }
-        let mut res: u16 = (*bytes
+        let first_byte: u8 = *bytes
             .first()
             .ok_or(VMError::ConcatenatingBytes(String::from(
-                "Non existing first bytes",
-            )))?)
-        .into();
-        res <<= 8;
-        let second_byte: u16 = (*bytes
+                "Non existing first byte",
+            )))?;
+        let second_byte: u8 = *bytes
             .get(1)
             .ok_or(VMError::ConcatenatingBytes(String::from(
-                "Non existing second bytes",
-            )))?)
-        .into();
-        res |= second_byte;
+                "Non existing second byte",
+            )))?;
+        let res = u16::from_be_bytes([first_byte, second_byte]);
         Ok(res)
     }
 }
