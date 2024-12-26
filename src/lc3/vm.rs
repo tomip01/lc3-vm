@@ -14,6 +14,7 @@ pub struct VM {
 }
 
 #[derive(Debug)]
+#[allow(dead_code)]
 pub enum VMError {
     ReadingFile(String),
     ConcatenatingBytes(String),
@@ -142,11 +143,11 @@ impl VM {
                 Opcode::LD => todo!(),
                 Opcode::ST => todo!(),
                 Opcode::Jsr => todo!(),
-                Opcode::And => todo!(),
+                Opcode::And => self.and(instr)?,
                 Opcode::Ldr => todo!(),
                 Opcode::Str => todo!(),
                 Opcode::Rti => todo!(),
-                Opcode::Not => todo!(),
+                Opcode::Not => self.not(instr)?,
                 Opcode::Ldi => todo!(),
                 Opcode::Sti => todo!(),
                 Opcode::Jmp => todo!(),
@@ -182,6 +183,34 @@ impl VM {
             let sum = value_in_r1.wrapping_add(value_in_r2);
             self.set_register(r0, sum)?;
         }
+        self.update_flags(r0)?;
+        Ok(())
+    }
+
+    fn and(&mut self, instr: u16) -> Result<(), VMError> {
+        let immediate_flag = (instr >> 5) & 0x1;
+        let r0 = (instr >> 9) & 0x7;
+        let r1 = (instr >> 6) & 0x7;
+        let value_in_r1 = *self.get_register(r1)?;
+        if immediate_flag == 1 {
+            let imm5 = sign_extend(instr & 0b11111, 5)?;
+            let res = value_in_r1 & imm5;
+            self.set_register(r0, res)?;
+        } else {
+            let r2 = instr & 0x7;
+            let value_in_r2 = *self.get_register(r2)?;
+            let res = value_in_r1 & value_in_r2;
+            self.set_register(r0, res)?;
+        }
+        self.update_flags(r0)?;
+        Ok(())
+    }
+
+    fn not(&mut self, instr: u16) -> Result<(), VMError> {
+        let r0 = (instr >> 9) & 0x7;
+        let r1 = (instr >> 6) & 0x7;
+        let value_in_r1 = *self.get_register(r1)?;
+        self.set_register(r0, !value_in_r1)?;
         self.update_flags(r0)?;
         Ok(())
     }
@@ -246,7 +275,7 @@ mod tests {
     }
 
     #[test]
-    fn add_overflows() -> Result<(), VMError> {
+    fn add_to_zero() -> Result<(), VMError> {
         let instr: u16 = 0b0001_0000_0100_0010;
         let mut vm = VM::new();
         vm.registers[1] = 1;
@@ -254,6 +283,51 @@ mod tests {
         vm.add(instr)?;
         assert_eq!(vm.registers[0], 0x0);
         assert_eq!(vm.cond, ConditionFlag::Zro);
+        Ok(())
+    }
+
+    #[test]
+    fn add_with_immediate() -> Result<(), VMError> {
+        let instr: u16 = 0b0001_0000_0110_0010; // add 2
+        let mut vm = VM::new();
+        vm.registers[1] = 1;
+        vm.add(instr)?;
+        assert_eq!(vm.registers[0], 0x3);
+        assert_eq!(vm.cond, ConditionFlag::Pos);
+        Ok(())
+    }
+
+    #[test]
+    fn and_register() -> Result<(), VMError> {
+        let instr: u16 = 0b0101_0000_0100_0010;
+        let mut vm = VM::new();
+        vm.registers[1] = 0x0F0F;
+        vm.registers[2] = 0xFFFF;
+        vm.and(instr)?;
+        assert_eq!(vm.registers[0], 0x0F0F);
+        assert_eq!(vm.cond, ConditionFlag::Pos);
+        Ok(())
+    }
+
+    #[test]
+    fn and_with_immediate() -> Result<(), VMError> {
+        let instr: u16 = 0b0001_0000_0110_0111;
+        let mut vm = VM::new();
+        vm.registers[1] = 0xFFFF;
+        vm.and(instr)?;
+        assert_eq!(vm.registers[0], 0x7);
+        assert_eq!(vm.cond, ConditionFlag::Pos);
+        Ok(())
+    }
+
+    #[test]
+    fn not_register() -> Result<(), VMError> {
+        let instr: u16 = 0b1001_0000_0111_1111;
+        let mut vm = VM::new();
+        vm.registers[1] = 0x0F0F;
+        vm.not(instr)?;
+        assert_eq!(vm.registers[0], 0xF0F0);
+        assert_eq!(vm.cond, ConditionFlag::Neg);
         Ok(())
     }
 }
