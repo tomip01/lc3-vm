@@ -1,5 +1,7 @@
 use std::fs;
 
+use super::opcode::Opcode;
+
 const MEMORY_MAX: usize = 1 << 16;
 pub struct VM {
     r0: u16,
@@ -21,25 +23,8 @@ pub enum VMError {
     ReadingFile(String),
     ConcatenatingBytes(String),
     Adding,
-}
-
-enum Opcode {
-    BR,   /* branch */
-    Add,  /* add  */
-    LD,   /* load */
-    ST,   /* store */
-    Jsr,  /* jump register */
-    And,  /* bitwise and */
-    Ldr,  /* load register */
-    Str,  /* store register */
-    Rti,  /* unused */
-    Not,  /* bitwise not */
-    Ldi,  /* load indirect */
-    Sti,  /* store indirect */
-    Jmp,  /* jump */
-    Res,  /* reserved (unused) */
-    Lea,  /* load effective address */
-    Trap, /* execute trap */
+    ReadingIndex(String),
+    InvalidOpcode,
 }
 
 enum ConditionFlag {
@@ -120,6 +105,44 @@ impl VM {
         .into();
         res |= second_byte;
         Ok(res)
+    }
+
+    pub fn run(&mut self) -> Result<(), VMError> {
+        while self.running {
+            // Fetch
+            let instr = self.mem_read(self.pc.into())?;
+            self.pc = self.pc.checked_add(1).ok_or(VMError::Adding)?;
+            let op: Opcode = (instr >> 12).try_into()?;
+
+            match op {
+                Opcode::BR => todo!(),
+                Opcode::Add => todo!(),
+                Opcode::LD => todo!(),
+                Opcode::ST => todo!(),
+                Opcode::Jsr => todo!(),
+                Opcode::And => todo!(),
+                Opcode::Ldr => todo!(),
+                Opcode::Str => todo!(),
+                Opcode::Rti => todo!(),
+                Opcode::Not => todo!(),
+                Opcode::Ldi => todo!(),
+                Opcode::Sti => todo!(),
+                Opcode::Jmp => todo!(),
+                Opcode::Res => todo!(),
+                Opcode::Lea => todo!(),
+                Opcode::Trap => todo!(),
+            }
+        }
+
+        Ok(())
+    }
+
+    fn mem_read(&self, index: usize) -> Result<u16, VMError> {
+        let value = self
+            .memory
+            .get(index)
+            .ok_or(VMError::ReadingIndex(String::from("Invalid index")))?;
+        Ok(*value)
     }
 }
 
