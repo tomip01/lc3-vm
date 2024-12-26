@@ -142,7 +142,7 @@ impl VM {
                 Opcode::Add => self.add(instr)?,
                 Opcode::LD => todo!(),
                 Opcode::ST => todo!(),
-                Opcode::Jsr => todo!(),
+                Opcode::Jsr => self.jsr(instr)?,
                 Opcode::And => self.and(instr)?,
                 Opcode::Ldr => todo!(),
                 Opcode::Str => todo!(),
@@ -152,7 +152,7 @@ impl VM {
                 Opcode::Sti => todo!(),
                 Opcode::Jmp => self.jmp(instr)?,
                 Opcode::Res => todo!(),
-                Opcode::Lea => todo!(),
+                Opcode::Lea => self.lea(instr)?,
                 Opcode::Trap => todo!(),
             }
         }
@@ -236,6 +236,38 @@ impl VM {
         let r1 = (instr >> 6) & 0x7;
         let value_in_r1 = *self.get_register(r1)?;
         self.pc = value_in_r1;
+        Ok(())
+    }
+
+    fn jsr(&mut self, instr: u16) -> Result<(), VMError> {
+        let long_flag = (instr >> 11) & 1;
+        self.set_register(7, self.pc)?;
+        if long_flag == 1 {
+            let long_pc_offset = sign_extend(instr & 0b0111_1111_1111, 11)?;
+            self.pc = self
+                .pc
+                .checked_add(long_pc_offset)
+                .ok_or(VMError::Adding(String::from(
+                    "Overflow in jumping register",
+                )))?;
+        } else {
+            let r1 = (instr >> 6) & 0b0111;
+            let value_in_r1 = *self.get_register(r1)?;
+            self.pc = value_in_r1;
+        }
+        Ok(())
+    }
+    fn lea(&mut self, instr: u16) -> Result<(), VMError> {
+        let r0 = (instr >> 9) & 0b111;
+        let pc_offset = sign_extend(instr & 0b0001_1111_1111, 9)?;
+        let value = self
+            .pc
+            .checked_add(pc_offset)
+            .ok_or(VMError::Adding(String::from(
+                "Overflow in LEA offset addition",
+            )))?;
+        self.set_register(r0, value)?;
+        self.update_flags(r0)?;
         Ok(())
     }
 }
@@ -382,6 +414,34 @@ mod tests {
         vm.registers[1] = 0x4242;
         vm.jmp(instr)?;
         assert_eq!(vm.pc, 0x4242);
+        Ok(())
+    }
+
+    #[test]
+    fn jump_to_subroutine() -> Result<(), VMError> {
+        let mut vm = VM::new();
+        let instr: u16 = 0b0100_1000_0100_0010; // add to PC 0x42
+        vm.jsr(instr)?;
+        assert_eq!(vm.pc, 0x3042);
+        Ok(())
+    }
+
+    #[test]
+    fn jump_to_subroutine_register() -> Result<(), VMError> {
+        let mut vm = VM::new();
+        let instr: u16 = 0b0100_0000_1100_0000; // set PC to R3 value
+        vm.registers[3] = 0x4242;
+        vm.jsr(instr)?;
+        assert_eq!(vm.pc, 0x4242);
+        Ok(())
+    }
+
+    #[test]
+    fn lea_store_address() -> Result<(), VMError> {
+        let mut vm = VM::new();
+        let instr: u16 = 0b1110_0000_0100_0010; // store in R0, PC plus 0x42
+        vm.lea(instr)?;
+        assert_eq!(vm.registers[0], 0x3042);
         Ok(())
     }
 }
