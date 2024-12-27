@@ -325,9 +325,9 @@ impl VM {
             TrapCode::Getc => self.getc(),
             TrapCode::Out => self.out(),
             TrapCode::Puts => self.puts(),
-            TrapCode::IN => todo!(),
-            TrapCode::Putsp => todo!(),
-            TrapCode::Halt => todo!(),
+            TrapCode::IN => self.in_trap(),
+            TrapCode::Putsp => self.putsp(),
+            TrapCode::Halt => self.halt(),
         }?;
         Ok(())
     }
@@ -349,6 +349,9 @@ impl VM {
         stdout()
             .write_all(&[char])
             .map_err(|e| VMError::StandardIO(format!("Cannot write in Standard Outout: {}", e)))?;
+        stdout()
+            .flush()
+            .map_err(|e| VMError::StandardIO(format!("Could not flush output: {e}")))?;
         Ok(())
     }
 
@@ -367,10 +370,69 @@ impl VM {
                 .ok_or(VMError::MemoryIndex(String::from("String too long")))?;
             char_memory = self.mem_read(address.into())?;
         }
+        stdout()
+            .flush()
+            .map_err(|e| VMError::StandardIO(format!("Could not flush output: {e}")))?;
+        Ok(())
+    }
+
+    fn in_trap(&mut self) -> Result<(), VMError> {
+        println!("Enter a character: ");
+        let mut buffer: [u8; 1] = [0];
+        stdin()
+            .read_exact(&mut buffer)
+            .map_err(|e| VMError::StandardIO(format!("Cannot read from Standard Input: {}", e)))?;
+        self.set_register(0, buffer[0].into())?;
+        stdout()
+            .write_all(&buffer)
+            .map_err(|e| VMError::StandardIO(format!("Cannot write in Standard Outout: {}", e)))?;
+        self.update_flags(0)?;
+        stdout()
+            .flush()
+            .map_err(|e| VMError::StandardIO(format!("Could not flush output: {e}")))?;
+        Ok(())
+    }
+
+    fn putsp(&mut self) -> Result<(), VMError> {
+        let mut address = *self.get_register(0)?;
+        let mut char_memory = self.mem_read(address.into())?;
+        while char_memory != 0 {
+            let first_char = char_memory & 0b1111_1111;
+            // write first char
+            let char: u8 = first_char
+                .try_into()
+                .map_err(|_| VMError::InvalidCharacter)?;
+            stdout().write_all(&[char]).map_err(|e| {
+                VMError::StandardIO(format!("Cannot write in Standard Outout: {}", e))
+            })?;
+            let second_char = char_memory >> 8;
+            // write second char
+            let char: u8 = second_char
+                .try_into()
+                .map_err(|_| VMError::InvalidCharacter)?;
+            stdout().write_all(&[char]).map_err(|e| {
+                VMError::StandardIO(format!("Cannot write in Standard Outout: {}", e))
+            })?;
+            address = address
+                .checked_add(1)
+                .ok_or(VMError::MemoryIndex(String::from("String too long")))?;
+            char_memory = self.mem_read(address.into())?;
+        }
+        stdout()
+            .flush()
+            .map_err(|e| VMError::StandardIO(format!("Could not flush output: {e}")))?;
+        Ok(())
+    }
+
+    fn halt(&mut self) -> Result<(), VMError> {
+        println!("HALT");
+        stdout()
+            .flush()
+            .map_err(|e| VMError::StandardIO(format!("Could not flush output: {e}")))?;
+        self.running = false;
         Ok(())
     }
 }
-
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -637,6 +699,35 @@ mod tests {
         vm.mem_write(0x0067, 0x4003)?; // g
         vm.registers[0] = 0x4000;
         vm.puts()?;
+        Ok(())
+    }
+
+    #[test]
+    fn putsp_print_8_chars() -> Result<(), VMError> {
+        let mut vm = VM::new();
+        vm.mem_write(0x6564, 0x4000)?; // d e in little endian
+        vm.mem_write(0x6766, 0x4001)?; // f g
+        vm.mem_write(0x6968, 0x4002)?; // h i
+        vm.mem_write(0x6B6A, 0x4003)?; // j k
+        vm.registers[0] = 0x4000;
+        vm.putsp()?;
+        Ok(())
+    }
+
+    #[test]
+    fn halt_stops_running() -> Result<(), VMError> {
+        let mut vm = VM::new();
+        vm.halt()?;
+        assert!(!vm.running);
+        Ok(())
+    }
+
+    #[test]
+    fn halt_executing_trap() -> Result<(), VMError> {
+        let mut vm = VM::new();
+        let instr: u16 = 0b1111_0000_0010_0101;
+        vm.execute(instr)?;
+        assert!(!vm.running);
         Ok(())
     }
 }
