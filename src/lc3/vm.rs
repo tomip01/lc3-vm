@@ -1,11 +1,5 @@
-use std::fs;
+use super::{bytes::sign_extend, memory::Memory, opcode::Opcode};
 
-use super::{
-    bytes::{concatenate_bytes, sign_extend},
-    opcode::Opcode,
-};
-
-const MEMORY_MAX: usize = 1 << 16;
 const TOTAL_REGISTERS: usize = 8;
 
 pub struct VM {
@@ -13,7 +7,7 @@ pub struct VM {
     pc: u16,
     cond: ConditionFlag,
     running: bool,
-    memory: [u16; MEMORY_MAX],
+    memory: Memory,
 }
 
 #[derive(Debug)]
@@ -41,7 +35,7 @@ impl VM {
             pc: 0x3000,
             cond: ConditionFlag::Zro,
             running: false,
-            memory: [0; MEMORY_MAX],
+            memory: Memory::new(),
         }
     }
 
@@ -74,62 +68,15 @@ impl VM {
     }
 
     pub fn read_image(&mut self, image_path: &str) -> Result<(), VMError> {
-        let content = &fs::read(image_path).map_err(|e| {
-            VMError::ReadingFile(format!("Failed to read file {}: {}", image_path, e))
-        })?;
-        self.read_image_bytes(content)?;
-        Ok(())
-    }
-
-    fn read_image_bytes(&mut self, bytes: &[u8]) -> Result<(), VMError> {
-        let mut collected: Vec<u16> = Vec::new();
-        let mut chunks_of_two_bytes = bytes.chunks_exact(2);
-        let origin: usize = concatenate_bytes(chunks_of_two_bytes.next().ok_or(
-            VMError::ConcatenatingBytes(String::from("No valid origin position from image")),
-        )?)?
-        .into();
-        for chunk in chunks_of_two_bytes {
-            let concatenated = concatenate_bytes(chunk)?;
-            collected.push(concatenated);
-        }
-
-        for (i, word) in collected.iter().enumerate() {
-            let index = i
-                .checked_add(origin)
-                .ok_or(VMError::MemoryIndex(String::from(
-                    "Invalid index to access memory on loading",
-                )))?;
-            let value = self
-                .memory
-                .get_mut(index)
-                .ok_or(VMError::MemoryIndex(String::from(
-                    "Image exceeds memory capacity",
-                )))?;
-            *value = *word;
-        }
-
-        Ok(())
+        self.memory.read_image(image_path)
     }
 
     fn mem_read(&self, index: usize) -> Result<u16, VMError> {
-        let value = self
-            .memory
-            .get(index)
-            .ok_or(VMError::MemoryIndex(String::from(
-                "Invalid out of bounds when reading from memory",
-            )))?;
-        Ok(*value)
+        self.memory.mem_read(index)
     }
 
     fn mem_write(&mut self, value: u16, index: usize) -> Result<(), VMError> {
-        let cell = self
-            .memory
-            .get_mut(index)
-            .ok_or(VMError::MemoryIndex(String::from(
-                "Index out of bound when writing memory",
-            )))?;
-        *cell = value;
-        Ok(())
+        self.memory.mem_write(value, index)
     }
 
     pub fn run(&mut self) -> Result<(), VMError> {
@@ -377,9 +324,9 @@ mod tests {
         let mut vm = VM::new();
         // file containing 0x00 0x30 0xf2 0xf3 0xf4 0xf5 0xf6 0xf7
         vm.read_image("images/test-image-load-big-endian")?;
-        assert_eq!(vm.memory[0x3000], 0xf3f2);
-        assert_eq!(vm.memory[0x3001], 0xf5f4);
-        assert_eq!(vm.memory[0x3002], 0xf7f6);
+        assert_eq!(vm.memory.mem_read(0x3000)?, 0xf3f2);
+        assert_eq!(vm.memory.mem_read(0x3001)?, 0xf5f4);
+        assert_eq!(vm.memory.mem_read(0x3002)?, 0xf7f6);
         Ok(())
     }
 
@@ -535,7 +482,7 @@ mod tests {
     fn load_to_register() -> Result<(), VMError> {
         let mut vm = VM::new();
         let instr: u16 = 0b0010_0000_0100_0010; // load in R0, value stored in PC + 0x42
-        vm.memory[0x3042] = 0x4242;
+        vm.memory.mem_write(0x4242, 0x3042)?;
         vm.ld(instr)?;
         assert_eq!(vm.registers[0], 0x4242);
         Ok(())
@@ -546,7 +493,7 @@ mod tests {
         let mut vm = VM::new();
         let instr: u16 = 0b0110_0000_0100_0010; // load in R0, value stored in R1 + 0x02
         vm.registers[1] = 0x3040;
-        vm.memory[0x3042] = 0x4242;
+        vm.memory.mem_write(0x4242, 0x3042)?;
         vm.ld(instr)?;
         assert_eq!(vm.registers[0], 0x4242);
         Ok(())
@@ -556,8 +503,8 @@ mod tests {
     fn load_indirect() -> Result<(), VMError> {
         let mut vm = VM::new();
         let instr: u16 = 0b1010_0000_0100_0010; // pc_offset is 0x42, will look for address in 0x3042
-        vm.memory[0x3042] = 0x4242;
-        vm.memory[0x4242] = 0x5353;
+        vm.memory.mem_write(0x4242, 0x3042)?;
+        vm.memory.mem_write(0x5353, 0x4242)?;
         vm.ldi(instr)?;
         assert_eq!(vm.registers[0], 0x5353);
         Ok(())
@@ -569,7 +516,7 @@ mod tests {
         let instr: u16 = 0b0011_0000_0100_0010; // pc_offset is 0x42, store in 0x3042 what is in R0
         vm.registers[0] = 0x4242;
         vm.st(instr)?;
-        assert_eq!(vm.memory[0x3042], 0x4242);
+        assert_eq!(vm.memory.mem_read(0x3042)?, 0x4242);
         Ok(())
     }
 
@@ -577,10 +524,10 @@ mod tests {
     fn store_indirect_value() -> Result<(), VMError> {
         let mut vm = VM::new();
         let instr: u16 = 0b1011_0000_0100_0010; // pc_offset is 0x42, store what is in R0 in [0x3042]
-        vm.memory[0x3042] = 0x5353;
+        vm.memory.mem_write(0x5353, 0x3042)?;
         vm.registers[0] = 0x4242;
         vm.sti(instr)?;
-        assert_eq!(vm.memory[0x5353], 0x4242);
+        assert_eq!(vm.memory.mem_read(0x5353)?, 0x4242);
         Ok(())
     }
 
@@ -592,7 +539,7 @@ mod tests {
         vm.registers[0] = 0x4242;
         vm.registers[1] = 0x1234;
         vm.str(instr)?;
-        assert_eq!(vm.memory[0x1236], 0x4242);
+        assert_eq!(vm.memory.mem_read(0x1236)?, 0x4242);
         Ok(())
     }
 
@@ -611,9 +558,9 @@ mod tests {
         ];
         vm.registers[1] = 0xABAB;
         vm.registers[2] = 0xCDCD;
-        vm.memory[0xABCE] = 0x4242;
-        vm.memory[0xCDCF] = 0x5353;
-        vm.memory[0xABEF] = 0x3000;
+        vm.memory.mem_write(0x4242, 0xABCE)?;
+        vm.memory.mem_write(0x5353, 0xCDCF)?;
+        vm.memory.mem_write(0x3000, 0xABEF)?;
         for instr in instructions {
             vm.execute(instr)?;
         }
@@ -621,7 +568,7 @@ mod tests {
         assert_eq!(vm.registers[0], 0x0008);
         assert_eq!(vm.registers[6], 0x5353);
         assert_eq!(vm.registers[7], 0x4242);
-        assert_eq!(vm.memory[0x3000], 0x5353);
+        assert_eq!(vm.memory.mem_read(0x3000)?, 0x5353);
         Ok(())
     }
 }
