@@ -1,9 +1,7 @@
 use super::vm::VMError;
 
 pub fn sign_extend(mut value: u16, bit_count: u16) -> Result<u16, VMError> {
-    let last_bit_position = bit_count
-        .checked_sub(1)
-        .ok_or(VMError::Adding(String::from("Invalid last position bit")))?;
+    let last_bit_position = bit_count.checked_sub(1).ok_or(VMError::Overflow)?;
     if (value >> (last_bit_position) & 1) == 1 {
         value |= 0xFFFF << bit_count;
     }
