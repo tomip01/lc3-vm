@@ -1,4 +1,6 @@
-use super::{bytes::sign_extend, memory::Memory, opcode::Opcode};
+use std::io::{stdin, Read};
+
+use super::{bytes::sign_extend, memory::Memory, opcode::Opcode, trap::TrapCode};
 
 const TOTAL_REGISTERS: usize = 8;
 
@@ -19,6 +21,8 @@ pub enum VMError {
     MemoryIndex(String),
     InvalidOpcode,
     InvalidRegister,
+    InvalidTrapCode,
+    StandardInput(String),
 }
 
 #[derive(Debug, PartialEq)]
@@ -113,7 +117,7 @@ impl VM {
             Opcode::Jmp => self.jmp(instr),
             Opcode::Res => Err(VMError::InvalidOpcode),
             Opcode::Lea => self.lea(instr),
-            Opcode::Trap => todo!(),
+            Opcode::Trap => self.trap(instr),
         }
     }
 
@@ -310,6 +314,30 @@ impl VM {
                 "Overflow with offset in Store Register",
             )))?;
         self.mem_write(value_in_r0, address.into())?;
+        Ok(())
+    }
+
+    fn trap(&mut self, instr: u16) -> Result<(), VMError> {
+        self.set_register(7, self.pc)?;
+        let trap_code: TrapCode = (instr & 0b1111_1111).try_into()?;
+        match trap_code {
+            TrapCode::Getc => self.getc(),
+            TrapCode::Out => todo!(),
+            TrapCode::Puts => todo!(),
+            TrapCode::IN => todo!(),
+            TrapCode::Putsp => todo!(),
+            TrapCode::Halt => todo!(),
+        }?;
+        Ok(())
+    }
+
+    fn getc(&mut self) -> Result<(), VMError> {
+        let mut buffer: [u8; 1] = [0];
+        stdin()
+            .read_exact(&mut buffer)
+            .map_err(|_| VMError::StandardInput(String::from("Invalid character")))?;
+        self.set_register(0, buffer[0].into())?;
+        self.update_flags(0)?;
         Ok(())
     }
 }
