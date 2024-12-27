@@ -117,6 +117,11 @@ impl VM {
         }
     }
 
+    /// ADD
+    /// ADD DR, SR1, SR2 or ADD DR, SR1, imm5
+    ///
+    /// Stores in DR the addition between SR1 and SR2 or SR1 and imm5 sign extended
+    /// Bit 5 if it is 1, then is read as a imm5
     fn add(&mut self, instr: u16) -> Result<(), VMError> {
         let immediate_flag = (instr >> 5) & 1;
         let r0 = (instr >> 9) & 0b0111;
@@ -136,6 +141,11 @@ impl VM {
         Ok(())
     }
 
+    /// AND
+    /// AND DR, SR1, SR2 or AND DR, SR1, imm5
+    ///
+    /// Stores in DR the and bitwise between SR1 and SR2 or SR1 and imm5 sign extended
+    /// Bit 5 if it is 1, then is read as a imm5
     fn and(&mut self, instr: u16) -> Result<(), VMError> {
         let immediate_flag = (instr >> 5) & 1;
         let r0 = (instr >> 9) & 0b0111;
@@ -155,6 +165,10 @@ impl VM {
         Ok(())
     }
 
+    /// NOT
+    /// NOT DR, SR1
+    ///
+    /// Stores in DR the negate bitwise of SR1
     fn not(&mut self, instr: u16) -> Result<(), VMError> {
         let r0 = (instr >> 9) & 0b0111;
         let r1 = (instr >> 6) & 0b0111;
@@ -164,6 +178,15 @@ impl VM {
         Ok(())
     }
 
+    /// BR
+    /// BRnzp PCoffset9
+    ///
+    /// In bit 11 is to jump if is negative
+    /// In bit 10 is to jump if is zero
+    /// In bit 9 is to jump if positive
+    ///
+    /// Stores in PC the addition of the PC and the sign extended PCoffset9 only if the condition flag
+    /// meets any of the bits that are 1
     fn br(&mut self, instr: u16) -> Result<(), VMError> {
         let pc_offset = sign_extend(instr & 0b0001_1111_1111, 9)?;
         let cond_flag_instr = (instr >> 9) & 0b0111;
@@ -183,6 +206,10 @@ impl VM {
         Ok(())
     }
 
+    /// JMP
+    /// JMP BaseR
+    ///
+    /// Stores in PC the addition of the PC and the value stored in the register BaseR
     fn jmp(&mut self, instr: u16) -> Result<(), VMError> {
         let r1 = (instr >> 6) & 0b0111;
         let value_in_r1 = *self.get_register(r1)?;
@@ -190,6 +217,11 @@ impl VM {
         Ok(())
     }
 
+    /// JSR/JSRR
+    /// JSR PCoffset11 or JSRR BaseR
+    ///
+    /// If bit 11 is a 1, then PC is added with the sign extension of PCoffset11
+    /// Else, PC is added with the value in the register
     fn jsr(&mut self, instr: u16) -> Result<(), VMError> {
         let long_flag = (instr >> 11) & 1;
         self.set_register(7, self.pc)?;
@@ -209,6 +241,10 @@ impl VM {
         Ok(())
     }
 
+    /// LEA
+    /// LEA DR, LABEL
+    ///
+    /// Stores in the register DR the value of the label
     fn lea(&mut self, instr: u16) -> Result<(), VMError> {
         let r0 = (instr >> 9) & 0b0111;
         let pc_offset = sign_extend(instr & 0b0001_1111_1111, 9)?;
@@ -223,6 +259,11 @@ impl VM {
         Ok(())
     }
 
+    /// LD
+    /// LD DR, PCoffset9
+    ///
+    /// Loads the value in memory from the address that is obtained sign extending PCoffset9 plus the PC
+    /// into the register DR
     fn ld(&mut self, instr: u16) -> Result<(), VMError> {
         let r0 = (instr >> 9) & 0b0111;
         let pc_offset = sign_extend(instr & 0b0001_1111_1111, 9)?;
@@ -238,6 +279,11 @@ impl VM {
         Ok(())
     }
 
+    /// LDR
+    /// LDR DR, BaseR, offset6
+    ///
+    /// Stores in DR the value from memory that is obtained sign extending offset6 plus
+    /// the value in the register BaseR
     fn ldr(&mut self, instr: u16) -> Result<(), VMError> {
         let r0 = (instr >> 9) & 0b0111;
         let r1 = (instr >> 6) & 0b0111;
@@ -254,6 +300,11 @@ impl VM {
         Ok(())
     }
 
+    /// LDI
+    /// LDI DR, PCoffset9
+    ///
+    /// Stores in the register DR the value in memory where the address is stored in the position in memory of
+    /// the PC plus the sign extension of PCoffset9
     fn ldi(&mut self, instr: u16) -> Result<(), VMError> {
         let r0 = (instr >> 9) & 0b0111;
         let pc_offset = sign_extend(instr & 0b0001_1111_1111, 9)?;
@@ -269,6 +320,11 @@ impl VM {
         Ok(())
     }
 
+    /// ST
+    /// ST SR, PCoffset9
+    ///
+    /// Stores in the address of the PC plus the sign extension of PCoffset9 the value in
+    /// the register SR
     fn st(&mut self, instr: u16) -> Result<(), VMError> {
         let r0 = (instr >> 9) & 0b0111;
         let value_in_r0 = *self.get_register(r0)?;
@@ -283,6 +339,11 @@ impl VM {
         Ok(())
     }
 
+    /// STI
+    /// STI SR, PCoffset9
+    ///
+    /// Stores in the address that is stored in memory in the position of the PC plus the sign extension of PCoffset9,
+    /// the value in the register SR
     fn sti(&mut self, instr: u16) -> Result<(), VMError> {
         let r0 = (instr >> 9) & 0b0111;
         let value_in_r0 = *self.get_register(r0)?;
@@ -298,6 +359,11 @@ impl VM {
         Ok(())
     }
 
+    /// STR
+    /// STR SR, BaseR, offset6
+    ///
+    /// Stores in the address of the BaseR plus the sign extension of PCoffset6 the value in
+    /// the register SR
     fn str(&mut self, instr: u16) -> Result<(), VMError> {
         let r0 = (instr >> 9) & 0b0111;
         let value_in_r0 = *self.get_register(r0)?;
