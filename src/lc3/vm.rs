@@ -19,7 +19,7 @@ pub enum VMError {
     ReadingFile(String),
     ConcatenatingBytes(String),
     Adding(String),
-    ReadingIndex(String),
+    MemoryIndex(String),
     InvalidOpcode,
     InvalidRegister,
 }
@@ -138,23 +138,23 @@ impl VM {
             let op: Opcode = (instr >> 12).try_into()?;
 
             match op {
-                Opcode::BR => self.br(instr)?,
-                Opcode::Add => self.add(instr)?,
-                Opcode::LD => self.ld(instr)?,
-                Opcode::ST => todo!(),
-                Opcode::Jsr => self.jsr(instr)?,
-                Opcode::And => self.and(instr)?,
-                Opcode::Ldr => self.ldr(instr)?,
+                Opcode::BR => self.br(instr),
+                Opcode::Add => self.add(instr),
+                Opcode::LD => self.ld(instr),
+                Opcode::ST => self.st(instr),
+                Opcode::Jsr => self.jsr(instr),
+                Opcode::And => self.and(instr),
+                Opcode::Ldr => self.ldr(instr),
                 Opcode::Str => todo!(),
                 Opcode::Rti => todo!(),
-                Opcode::Not => self.not(instr)?,
-                Opcode::Ldi => todo!(),
+                Opcode::Not => self.not(instr),
+                Opcode::Ldi => self.ldi(instr),
                 Opcode::Sti => todo!(),
-                Opcode::Jmp => self.jmp(instr)?,
+                Opcode::Jmp => self.jmp(instr),
                 Opcode::Res => todo!(),
-                Opcode::Lea => self.lea(instr)?,
+                Opcode::Lea => self.lea(instr),
                 Opcode::Trap => todo!(),
-            }
+            }?
         }
 
         Ok(())
@@ -164,8 +164,19 @@ impl VM {
         let value = self
             .memory
             .get(index)
-            .ok_or(VMError::ReadingIndex(String::from("Invalid index")))?;
+            .ok_or(VMError::MemoryIndex(String::from("Invalid index")))?;
         Ok(*value)
+    }
+
+    fn mem_write(&mut self, value: u16, index: usize) -> Result<(), VMError> {
+        let cell = self
+            .memory
+            .get_mut(index)
+            .ok_or(VMError::MemoryIndex(String::from(
+                "Index out of bound when writing memory",
+            )))?;
+        *cell = value;
+        Ok(())
     }
 
     fn add(&mut self, instr: u16) -> Result<(), VMError> {
@@ -302,8 +313,36 @@ impl VM {
         self.update_flags(r0)?;
         Ok(())
     }
-}
 
+    fn ldi(&mut self, instr: u16) -> Result<(), VMError> {
+        let r0 = (instr >> 9) & 0b0111;
+        let pc_offset = sign_extend(instr & 0b0001_1111_1111, 9)?;
+        let address = self
+            .pc
+            .checked_add(pc_offset)
+            .ok_or(VMError::Adding(String::from(
+                "Overflow in Load offset addition",
+            )))?;
+        let value_read = self.mem_read(address.into())?;
+        self.set_register(r0, self.mem_read(value_read.into())?)?;
+        self.update_flags(r0)?;
+        Ok(())
+    }
+
+    fn st(&mut self, instr: u16) -> Result<(), VMError> {
+        let r0 = (instr >> 9) & 0b0111;
+        let value_in_r0 = *self.get_register(r0)?;
+        let pc_offset = sign_extend(instr & 0b0001_1111_1111, 9)?;
+        let address = self
+            .pc
+            .checked_add(pc_offset)
+            .ok_or(VMError::Adding(String::from(
+                "Overflow in Load offset addition",
+            )))?;
+        self.mem_write(value_in_r0, address.into())?;
+        Ok(())
+    }
+}
 fn sign_extend(mut value: u16, bit_count: u16) -> Result<u16, VMError> {
     let last_bit_position = bit_count
         .checked_sub(1)
@@ -495,6 +534,27 @@ mod tests {
         vm.memory[0x3042] = 0x4242;
         vm.ld(instr)?;
         assert_eq!(vm.registers[0], 0x4242);
+        Ok(())
+    }
+
+    #[test]
+    fn load_indirect() -> Result<(), VMError> {
+        let mut vm = VM::new();
+        let instr: u16 = 0b1010_0000_0100_0010; // pc_offset is 0x42, will look for address in 0x3042
+        vm.memory[0x3042] = 0x4242;
+        vm.memory[0x4242] = 0x5353;
+        vm.ldi(instr)?;
+        assert_eq!(vm.registers[0], 0x5353);
+        Ok(())
+    }
+
+    #[test]
+    fn store_value() -> Result<(), VMError> {
+        let mut vm = VM::new();
+        let instr: u16 = 0b0011_0000_0100_0010; // pc_offset is 0x42, store in 0x3042 what is in R0
+        vm.registers[0] = 0x4242;
+        vm.st(instr)?;
+        assert_eq!(vm.memory[0x3042], 0x4242);
         Ok(())
     }
 }
