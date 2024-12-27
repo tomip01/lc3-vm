@@ -23,9 +23,9 @@ pub enum VMError {
 
 #[derive(Debug, PartialEq)]
 enum ConditionFlag {
-    Pos, // = 1 << 0, /* P */
-    Zro, // = 1 << 1, /* Z */
-    Neg, // = 1 << 2, /* N */
+    Pos,
+    Zro,
+    Neg,
 }
 
 impl VM {
@@ -114,8 +114,7 @@ impl VM {
             Opcode::Res => Err(VMError::InvalidOpcode),
             Opcode::Lea => self.lea(instr),
             Opcode::Trap => todo!(),
-        }?;
-        Ok(())
+        }
     }
 
     fn add(&mut self, instr: u16) -> Result<(), VMError> {
