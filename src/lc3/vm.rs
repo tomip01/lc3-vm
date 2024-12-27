@@ -1,4 +1,4 @@
-use std::io::{stdin, Read};
+use std::io::{stdin, stdout, Read, Write};
 
 use super::{bytes::sign_extend, memory::Memory, opcode::Opcode, trap::TrapCode};
 
@@ -22,7 +22,8 @@ pub enum VMError {
     InvalidOpcode,
     InvalidRegister,
     InvalidTrapCode,
-    StandardInput(String),
+    StandardIO(String),
+    InvalidCharacter,
 }
 
 #[derive(Debug, PartialEq)]
@@ -322,8 +323,8 @@ impl VM {
         let trap_code: TrapCode = (instr & 0b1111_1111).try_into()?;
         match trap_code {
             TrapCode::Getc => self.getc(),
-            TrapCode::Out => todo!(),
-            TrapCode::Puts => todo!(),
+            TrapCode::Out => self.out(),
+            TrapCode::Puts => self.puts(),
             TrapCode::IN => todo!(),
             TrapCode::Putsp => todo!(),
             TrapCode::Halt => todo!(),
@@ -335,9 +336,37 @@ impl VM {
         let mut buffer: [u8; 1] = [0];
         stdin()
             .read_exact(&mut buffer)
-            .map_err(|_| VMError::StandardInput(String::from("Invalid character")))?;
+            .map_err(|e| VMError::StandardIO(format!("Cannot read from Standard Input: {}", e)))?;
         self.set_register(0, buffer[0].into())?;
         self.update_flags(0)?;
+        Ok(())
+    }
+
+    fn out(&mut self) -> Result<(), VMError> {
+        let char: u8 = (*self.get_register(0)?)
+            .try_into()
+            .map_err(|_| VMError::InvalidCharacter)?;
+        stdout()
+            .write_all(&[char])
+            .map_err(|e| VMError::StandardIO(format!("Cannot write in Standard Outout: {}", e)))?;
+        Ok(())
+    }
+
+    fn puts(&mut self) -> Result<(), VMError> {
+        let mut address = *self.get_register(0)?;
+        let mut char_memory = self.mem_read(address.into())?;
+        while char_memory != 0 {
+            let char: u8 = char_memory
+                .try_into()
+                .map_err(|_| VMError::InvalidCharacter)?;
+            stdout().write_all(&[char]).map_err(|e| {
+                VMError::StandardIO(format!("Cannot write in Standard Outout: {}", e))
+            })?;
+            address = address
+                .checked_add(1)
+                .ok_or(VMError::MemoryIndex(String::from("String too long")))?;
+            char_memory = self.mem_read(address.into())?;
+        }
         Ok(())
     }
 }
@@ -596,6 +625,18 @@ mod tests {
         assert_eq!(vm.registers[6], 0x5353);
         assert_eq!(vm.registers[7], 0x4242);
         assert_eq!(vm.memory.mem_read(0x3000)?, 0x5353);
+        Ok(())
+    }
+
+    #[test]
+    fn puts_print_4_chars() -> Result<(), VMError> {
+        let mut vm = VM::new();
+        vm.mem_write(0x0064, 0x4000)?; // d
+        vm.mem_write(0x0065, 0x4001)?; // e
+        vm.mem_write(0x0066, 0x4002)?; // f
+        vm.mem_write(0x0067, 0x4003)?; // g
+        vm.registers[0] = 0x4000;
+        vm.puts()?;
         Ok(())
     }
 }
