@@ -1,6 +1,9 @@
 use std::fs;
 
-use super::opcode::Opcode;
+use super::{
+    bytes::{concatenate_bytes, sign_extend},
+    opcode::Opcode,
+};
 
 const MEMORY_MAX: usize = 1 << 16;
 const TOTAL_REGISTERS: usize = 8;
@@ -81,12 +84,12 @@ impl VM {
     fn read_image_bytes(&mut self, bytes: &[u8]) -> Result<(), VMError> {
         let mut collected: Vec<u16> = Vec::new();
         let mut chunks_of_two_bytes = bytes.chunks_exact(2);
-        let origin: usize = Self::concatenate_bytes(chunks_of_two_bytes.next().ok_or(
+        let origin: usize = concatenate_bytes(chunks_of_two_bytes.next().ok_or(
             VMError::ConcatenatingBytes(String::from("No valid origin position from image")),
         )?)?
         .into();
         for chunk in chunks_of_two_bytes {
-            let concatenated = Self::concatenate_bytes(chunk)?;
+            let concatenated = concatenate_bytes(chunk)?;
             collected.push(concatenated);
         }
 
@@ -106,57 +109,42 @@ impl VM {
         Ok(())
     }
 
-    fn concatenate_bytes(bytes: &[u8]) -> Result<u16, VMError> {
-        // maybe this check is redundant
-        if bytes.len() != 2 {
-            return Err(VMError::ConcatenatingBytes(String::from(
-                "Image file is not made from words of 16 bits",
-            )));
-        }
-        let first_byte: u8 = *bytes
-            .first()
-            .ok_or(VMError::ConcatenatingBytes(String::from(
-                "Non existing first byte",
-            )))?;
-        let second_byte: u8 = *bytes
-            .get(1)
-            .ok_or(VMError::ConcatenatingBytes(String::from(
-                "Non existing second byte",
-            )))?;
-        let res = u16::from_be_bytes([first_byte, second_byte]);
-        Ok(res)
-    }
-
     pub fn run(&mut self) -> Result<(), VMError> {
         while self.running {
             // Fetch
             let instr = self.mem_read(self.pc.into())?;
+            // Increment PC
             self.pc = self
                 .pc
                 .checked_add(1)
                 .ok_or(VMError::Adding(String::from("PC out of bounds")))?;
-            let op: Opcode = (instr >> 12).try_into()?;
-
-            match op {
-                Opcode::BR => self.br(instr),
-                Opcode::Add => self.add(instr),
-                Opcode::LD => self.ld(instr),
-                Opcode::ST => self.st(instr),
-                Opcode::Jsr => self.jsr(instr),
-                Opcode::And => self.and(instr),
-                Opcode::Ldr => self.ldr(instr),
-                Opcode::Str => self.str(instr),
-                Opcode::Rti => todo!(),
-                Opcode::Not => self.not(instr),
-                Opcode::Ldi => self.ldi(instr),
-                Opcode::Sti => self.sti(instr),
-                Opcode::Jmp => self.jmp(instr),
-                Opcode::Res => todo!(),
-                Opcode::Lea => self.lea(instr),
-                Opcode::Trap => todo!(),
-            }?
+            // Execute
+            self.execute(instr)?;
         }
 
+        Ok(())
+    }
+
+    fn execute(&mut self, instr: u16) -> Result<(), VMError> {
+        let op: Opcode = (instr >> 12).try_into()?;
+        match op {
+            Opcode::BR => self.br(instr),
+            Opcode::Add => self.add(instr),
+            Opcode::LD => self.ld(instr),
+            Opcode::ST => self.st(instr),
+            Opcode::Jsr => self.jsr(instr),
+            Opcode::And => self.and(instr),
+            Opcode::Ldr => self.ldr(instr),
+            Opcode::Str => self.str(instr),
+            Opcode::Rti => Err(VMError::InvalidOpcode),
+            Opcode::Not => self.not(instr),
+            Opcode::Ldi => self.ldi(instr),
+            Opcode::Sti => self.sti(instr),
+            Opcode::Jmp => self.jmp(instr),
+            Opcode::Res => Err(VMError::InvalidOpcode),
+            Opcode::Lea => self.lea(instr),
+            Opcode::Trap => todo!(),
+        }?;
         Ok(())
     }
 
@@ -372,16 +360,6 @@ impl VM {
         self.mem_write(value_in_r0, address.into())?;
         Ok(())
     }
-}
-
-fn sign_extend(mut value: u16, bit_count: u16) -> Result<u16, VMError> {
-    let last_bit_position = bit_count
-        .checked_sub(1)
-        .ok_or(VMError::Adding(String::from("Invalid last position bit")))?;
-    if (value >> (last_bit_position) & 1) == 1 {
-        value |= 0xFFFF << bit_count;
-    }
-    Ok(value)
 }
 
 #[cfg(test)]
@@ -609,6 +587,35 @@ mod tests {
         vm.registers[1] = 0x1234;
         vm.str(instr)?;
         assert_eq!(vm.memory[0x1236], 0x4242);
+        Ok(())
+    }
+
+    #[test]
+    fn combined_register_instructions() -> Result<(), VMError> {
+        let mut vm = VM::new();
+        let instructions = [
+            0b0001_0000_0100_0010, // ADD R0, R1, R2        => R0 = 0x7978
+            0b0101_0000_0010_1111, // AND R0, R0, 0x000F    => R0 = 0x0008
+            0b0000_0010_0100_0010, // BR+ 0x0042            => PC = 0x3042
+            0b1100_0000_0100_0000, // JMP R1                => PC = 0xABAB
+            0b0100_1000_0010_0010, // JSR 0x0022            => PC = 0xABCD
+            0b0010_1110_0000_0001, // LD R7, 0x1            => R7 = [0xABCE]
+            0b0110_1100_1000_0010, // LDR R6, R2, 0x2       => R6 = [0xCDCF]
+            0b1011_1100_0010_0010, // STI R6, 0x22          => [[0xABEF]] = R6
+        ];
+        vm.registers[1] = 0xABAB;
+        vm.registers[2] = 0xCDCD;
+        vm.memory[0xABCE] = 0x4242;
+        vm.memory[0xCDCF] = 0x5353;
+        vm.memory[0xABEF] = 0x3000;
+        for instr in instructions {
+            vm.execute(instr)?;
+        }
+        assert_eq!(vm.pc, 0xABCD);
+        assert_eq!(vm.registers[0], 0x0008);
+        assert_eq!(vm.registers[6], 0x5353);
+        assert_eq!(vm.registers[7], 0x4242);
+        assert_eq!(vm.memory[0x3000], 0x5353);
         Ok(())
     }
 }
