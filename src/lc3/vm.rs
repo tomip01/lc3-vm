@@ -145,11 +145,11 @@ impl VM {
                 Opcode::Jsr => self.jsr(instr),
                 Opcode::And => self.and(instr),
                 Opcode::Ldr => self.ldr(instr),
-                Opcode::Str => todo!(),
+                Opcode::Str => self.str(instr),
                 Opcode::Rti => todo!(),
                 Opcode::Not => self.not(instr),
                 Opcode::Ldi => self.ldi(instr),
-                Opcode::Sti => todo!(),
+                Opcode::Sti => self.sti(instr),
                 Opcode::Jmp => self.jmp(instr),
                 Opcode::Res => todo!(),
                 Opcode::Lea => self.lea(instr),
@@ -342,7 +342,38 @@ impl VM {
         self.mem_write(value_in_r0, address.into())?;
         Ok(())
     }
+
+    fn sti(&mut self, instr: u16) -> Result<(), VMError> {
+        let r0 = (instr >> 9) & 0b0111;
+        let value_in_r0 = *self.get_register(r0)?;
+        let pc_offset = sign_extend(instr & 0b0001_1111_1111, 9)?;
+        let address = self
+            .pc
+            .checked_add(pc_offset)
+            .ok_or(VMError::Adding(String::from(
+                "Overflow in Load offset addition",
+            )))?;
+        let value_read = self.mem_read(address.into())?;
+        self.mem_write(value_in_r0, value_read.into())?;
+        Ok(())
+    }
+
+    fn str(&mut self, instr: u16) -> Result<(), VMError> {
+        let r0 = (instr >> 9) & 0b0111;
+        let value_in_r0 = *self.get_register(r0)?;
+        let r1 = (instr >> 6) & 0b0111;
+        let value_in_r1 = *self.get_register(r1)?;
+        let pc_offset = sign_extend(instr & 0b0011_1111, 6)?;
+        let address = value_in_r1
+            .checked_add(pc_offset)
+            .ok_or(VMError::Adding(String::from(
+                "Overflow in Load offset addition",
+            )))?;
+        self.mem_write(value_in_r0, address.into())?;
+        Ok(())
+    }
 }
+
 fn sign_extend(mut value: u16, bit_count: u16) -> Result<u16, VMError> {
     let last_bit_position = bit_count
         .checked_sub(1)
@@ -555,6 +586,29 @@ mod tests {
         vm.registers[0] = 0x4242;
         vm.st(instr)?;
         assert_eq!(vm.memory[0x3042], 0x4242);
+        Ok(())
+    }
+
+    #[test]
+    fn store_indirect_value() -> Result<(), VMError> {
+        let mut vm = VM::new();
+        let instr: u16 = 0b1011_0000_0100_0010; // pc_offset is 0x42, store what is in R0 in [0x3042]
+        vm.memory[0x3042] = 0x5353;
+        vm.registers[0] = 0x4242;
+        vm.sti(instr)?;
+        assert_eq!(vm.memory[0x5353], 0x4242);
+        Ok(())
+    }
+
+    #[test]
+    fn store_register_value() -> Result<(), VMError> {
+        let mut vm = VM::new();
+        let instr: u16 = 0b0111_0000_0100_0010; // px_offset is 0x02 this plus what is in R1 is the address,
+                                                //store there what is in R0
+        vm.registers[0] = 0x4242;
+        vm.registers[1] = 0x1234;
+        vm.str(instr)?;
+        assert_eq!(vm.memory[0x1236], 0x4242);
         Ok(())
     }
 }
