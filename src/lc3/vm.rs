@@ -547,9 +547,9 @@ mod tests {
         let mut vm = VM::new();
         // file containing 0x00 0x30 0xf2 0xf3 0xf4 0xf5 0xf6 0xf7
         vm.read_image("images/test-image-load-big-endian")?;
-        assert_eq!(vm.memory.mem_read(0x3000)?, 0xf3f2);
-        assert_eq!(vm.memory.mem_read(0x3001)?, 0xf5f4);
-        assert_eq!(vm.memory.mem_read(0x3002)?, 0xf7f6);
+        assert_eq!(vm.mem_read(0x3000)?, 0xf3f2);
+        assert_eq!(vm.mem_read(0x3001)?, 0xf5f4);
+        assert_eq!(vm.mem_read(0x3002)?, 0xf7f6);
         Ok(())
     }
 
@@ -705,7 +705,7 @@ mod tests {
     fn load_to_register() -> Result<(), VMError> {
         let mut vm = VM::new();
         let instr: u16 = 0b0010_0000_0100_0010; // load in R0, value stored in PC + 0x42
-        vm.memory.mem_write(0x4242, 0x3042)?;
+        vm.mem_write(0x4242, 0x3042)?;
         vm.ld(instr)?;
         assert_eq!(vm.registers[0], 0x4242);
         Ok(())
@@ -716,7 +716,7 @@ mod tests {
         let mut vm = VM::new();
         let instr: u16 = 0b0110_0000_0100_0010; // load in R0, value stored in R1 + 0x02
         vm.registers[1] = 0x3040;
-        vm.memory.mem_write(0x4242, 0x3042)?;
+        vm.mem_write(0x4242, 0x3042)?;
         vm.ld(instr)?;
         assert_eq!(vm.registers[0], 0x4242);
         Ok(())
@@ -726,8 +726,8 @@ mod tests {
     fn load_indirect() -> Result<(), VMError> {
         let mut vm = VM::new();
         let instr: u16 = 0b1010_0000_0100_0010; // pc_offset is 0x42, will look for address in 0x3042
-        vm.memory.mem_write(0x4242, 0x3042)?;
-        vm.memory.mem_write(0x5353, 0x4242)?;
+        vm.mem_write(0x4242, 0x3042)?;
+        vm.mem_write(0x5353, 0x4242)?;
         vm.ldi(instr)?;
         assert_eq!(vm.registers[0], 0x5353);
         Ok(())
@@ -739,7 +739,7 @@ mod tests {
         let instr: u16 = 0b0011_0000_0100_0010; // pc_offset is 0x42, store in 0x3042 what is in R0
         vm.registers[0] = 0x4242;
         vm.st(instr)?;
-        assert_eq!(vm.memory.mem_read(0x3042)?, 0x4242);
+        assert_eq!(vm.mem_read(0x3042)?, 0x4242);
         Ok(())
     }
 
@@ -747,10 +747,10 @@ mod tests {
     fn store_indirect_value() -> Result<(), VMError> {
         let mut vm = VM::new();
         let instr: u16 = 0b1011_0000_0100_0010; // pc_offset is 0x42, store what is in R0 in [0x3042]
-        vm.memory.mem_write(0x5353, 0x3042)?;
+        vm.mem_write(0x5353, 0x3042)?;
         vm.registers[0] = 0x4242;
         vm.sti(instr)?;
-        assert_eq!(vm.memory.mem_read(0x5353)?, 0x4242);
+        assert_eq!(vm.mem_read(0x5353)?, 0x4242);
         Ok(())
     }
 
@@ -762,7 +762,7 @@ mod tests {
         vm.registers[0] = 0x4242;
         vm.registers[1] = 0x1234;
         vm.str(instr)?;
-        assert_eq!(vm.memory.mem_read(0x1236)?, 0x4242);
+        assert_eq!(vm.mem_read(0x1236)?, 0x4242);
         Ok(())
     }
 
@@ -781,9 +781,9 @@ mod tests {
         ];
         vm.registers[1] = 0xABAB;
         vm.registers[2] = 0xCDCD;
-        vm.memory.mem_write(0x4242, 0xABCE)?;
-        vm.memory.mem_write(0x5353, 0xCDCF)?;
-        vm.memory.mem_write(0x3000, 0xABEF)?;
+        vm.mem_write(0x4242, 0xABCE)?;
+        vm.mem_write(0x5353, 0xCDCF)?;
+        vm.mem_write(0x3000, 0xABEF)?;
         for instr in instructions {
             vm.execute(instr)?;
         }
@@ -791,7 +791,7 @@ mod tests {
         assert_eq!(vm.registers[0], 0x0008);
         assert_eq!(vm.registers[6], 0x5353);
         assert_eq!(vm.registers[7], 0x4242);
-        assert_eq!(vm.memory.mem_read(0x3000)?, 0x5353);
+        assert_eq!(vm.mem_read(0x3000)?, 0x5353);
         Ok(())
     }
 
