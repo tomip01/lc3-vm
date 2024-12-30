@@ -45,13 +45,7 @@ impl Memory {
                 .ok_or(VMError::MemoryIndex(String::from(
                     "Invalid index to access memory on loading",
                 )))?;
-            let value = self
-                .memory
-                .get_mut(index)
-                .ok_or(VMError::MemoryIndex(String::from(
-                    "Image exceeds memory capacity",
-                )))?;
-            *value = *word;
+            self.mem_write(*word, index)?;
         }
 
         Ok(())
@@ -92,6 +86,30 @@ impl Memory {
         } else {
             self.mem_write(0, MR_KBSR)?;
         }
+        Ok(())
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn read_and_write() -> Result<(), VMError> {
+        let mut mem = Memory::new();
+        mem.mem_write(0x4242, 0x2424)?;
+        assert_eq!(0x4242, mem.mem_read(0x2424)?);
+        Ok(())
+    }
+
+    #[test]
+    fn correct_image_read() -> Result<(), VMError> {
+        let mut mem = Memory::new();
+        // file containing 0x00 0x30 0xf2 0xf3 0xf4 0xf5 0xf6 0xf7
+        mem.read_image("images/test-image-load-big-endian")?;
+        assert_eq!(mem.mem_read(0x3000)?, 0xf3f2);
+        assert_eq!(mem.mem_read(0x3001)?, 0xf5f4);
+        assert_eq!(mem.mem_read(0x3002)?, 0xf7f6);
         Ok(())
     }
 }

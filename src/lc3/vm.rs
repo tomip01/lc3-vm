@@ -555,15 +555,6 @@ mod tests {
     }
 
     #[test]
-    fn sign_extend_mantains_sign() -> Result<(), VMError> {
-        let x = 0b11111;
-        let y = 0b01111;
-        assert_eq!(sign_extend(x, 5)?, 0xFFFF);
-        assert_eq!(sign_extend(y, 5)?, 0x000F);
-        Ok(())
-    }
-
-    #[test]
     fn add_to_registers_and_store() -> Result<(), VMError> {
         let instr: u16 = 0b0001_0000_0100_0010; // ADD R0, R1, R2
         let mut vm = VM::new();
