@@ -1,6 +1,7 @@
 use std::convert::TryFrom;
 
 use super::vm::VMError;
+#[derive(Debug)]
 pub enum Opcode {
     BR = 0, /* branch */
     Add,    /* add  */

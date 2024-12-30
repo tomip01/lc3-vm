@@ -73,7 +73,9 @@ impl VM {
     }
 
     pub fn read_image(&mut self, image_path: &str) -> Result<(), VMError> {
-        self.memory.read_image(image_path)
+        self.memory.read_image(image_path)?;
+        self.running = true;
+        Ok(())
     }
 
     fn mem_read(&mut self, index: usize) -> Result<u16, VMError> {
@@ -102,6 +104,7 @@ impl VM {
 
     fn execute(&mut self, instr: u16) -> Result<(), VMError> {
         let op: Opcode = (instr >> 12).try_into()?;
+
         match op {
             Opcode::BR => self.br(instr),
             Opcode::Add => self.add(instr),
@@ -205,12 +208,7 @@ impl VM {
             ConditionFlag::Pos => cond_flag_instr & 0b001,
         };
         if meet_condition != 0 {
-            self.pc = self
-                .pc
-                .checked_add(pc_offset)
-                .ok_or(VMError::MemoryIndex(String::from(
-                    "Overflow with offset in conditional branching",
-                )))?;
+            self.pc = self.pc.wrapping_add(pc_offset);
         }
         Ok(())
     }
@@ -238,12 +236,7 @@ impl VM {
         self.set_register(7, self.pc)?;
         if long_flag == 1 {
             let long_pc_offset = sign_extend(instr & 0b0111_1111_1111, 11)?;
-            self.pc = self
-                .pc
-                .checked_add(long_pc_offset)
-                .ok_or(VMError::MemoryIndex(String::from(
-                    "Overflow with offset in jumping register",
-                )))?;
+            self.pc = self.pc.wrapping_add(long_pc_offset);
         } else {
             let r1 = (instr >> 6) & 0b0111;
             let value_in_r1 = *self.get_register(r1)?;
@@ -260,12 +253,7 @@ impl VM {
     fn lea(&mut self, instr: u16) -> Result<(), VMError> {
         let r0 = (instr >> 9) & 0b0111;
         let pc_offset = sign_extend(instr & 0b0001_1111_1111, 9)?;
-        let value = self
-            .pc
-            .checked_add(pc_offset)
-            .ok_or(VMError::MemoryIndex(String::from(
-                "Overflow with offset in LEA",
-            )))?;
+        let value = self.pc.wrapping_add(pc_offset);
         self.set_register(r0, value)?;
         self.update_flags(r0)?;
         Ok(())
@@ -280,12 +268,7 @@ impl VM {
     fn ld(&mut self, instr: u16) -> Result<(), VMError> {
         let r0 = (instr >> 9) & 0b0111;
         let pc_offset = sign_extend(instr & 0b0001_1111_1111, 9)?;
-        let address = self
-            .pc
-            .checked_add(pc_offset)
-            .ok_or(VMError::MemoryIndex(String::from(
-                "Overflow with offset in Load",
-            )))?;
+        let address = self.pc.wrapping_add(pc_offset);
         let value_read = self.mem_read(address.into())?;
         self.set_register(r0, value_read)?;
         self.update_flags(r0)?;
@@ -303,11 +286,7 @@ impl VM {
         let r1 = (instr >> 6) & 0b0111;
         let value_in_r1 = *self.get_register(r1)?;
         let pc_offset = sign_extend(instr & 0b0011_1111, 6)?;
-        let address = value_in_r1
-            .checked_add(pc_offset)
-            .ok_or(VMError::MemoryIndex(String::from(
-                "Overflow with offset in Load Register",
-            )))?;
+        let address = value_in_r1.wrapping_add(pc_offset);
         let value_read = self.mem_read(address.into())?;
         self.set_register(r0, value_read)?;
         self.update_flags(r0)?;
@@ -323,12 +302,7 @@ impl VM {
     fn ldi(&mut self, instr: u16) -> Result<(), VMError> {
         let r0 = (instr >> 9) & 0b0111;
         let pc_offset = sign_extend(instr & 0b0001_1111_1111, 9)?;
-        let address = self
-            .pc
-            .checked_add(pc_offset)
-            .ok_or(VMError::MemoryIndex(String::from(
-                "Overflow with offset in Load Indirect",
-            )))?;
+        let address = self.pc.wrapping_add(pc_offset);
         let value_read = self.mem_read(address.into())?;
         let value = self.mem_read(value_read.into())?;
         self.set_register(r0, value)?;
@@ -346,12 +320,7 @@ impl VM {
         let r0 = (instr >> 9) & 0b0111;
         let value_in_r0 = *self.get_register(r0)?;
         let pc_offset = sign_extend(instr & 0b0001_1111_1111, 9)?;
-        let address = self
-            .pc
-            .checked_add(pc_offset)
-            .ok_or(VMError::MemoryIndex(String::from(
-                "Overflow with offset in Store",
-            )))?;
+        let address = self.pc.wrapping_add(pc_offset);
         self.mem_write(value_in_r0, address.into())?;
         Ok(())
     }
@@ -366,12 +335,7 @@ impl VM {
         let r0 = (instr >> 9) & 0b0111;
         let value_in_r0 = *self.get_register(r0)?;
         let pc_offset = sign_extend(instr & 0b0001_1111_1111, 9)?;
-        let address = self
-            .pc
-            .checked_add(pc_offset)
-            .ok_or(VMError::MemoryIndex(String::from(
-                "Overflow with offset in Store Indirect",
-            )))?;
+        let address = self.pc.wrapping_add(pc_offset);
         let value_read = self.mem_read(address.into())?;
         self.mem_write(value_in_r0, value_read.into())?;
         Ok(())
@@ -389,11 +353,7 @@ impl VM {
         let r1 = (instr >> 6) & 0b0111;
         let value_in_r1 = *self.get_register(r1)?;
         let pc_offset = sign_extend(instr & 0b0011_1111, 6)?;
-        let address = value_in_r1
-            .checked_add(pc_offset)
-            .ok_or(VMError::MemoryIndex(String::from(
-                "Overflow with offset in Store Register",
-            )))?;
+        let address = value_in_r1.wrapping_add(pc_offset);
         self.mem_write(value_in_r0, address.into())?;
         Ok(())
     }
