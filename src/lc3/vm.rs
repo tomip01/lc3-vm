@@ -346,9 +346,8 @@ impl VM {
         let char: u8 = (*self.get_register(0)?)
             .try_into()
             .map_err(|_| VMError::InvalidCharacter)?;
-        stdout()
-            .write_all(&[char])
-            .map_err(|e| VMError::StandardIO(format!("Cannot write in Standard Outout: {}", e)))?;
+        let char: char = char.into();
+        print!("{char}");
         stdout()
             .flush()
             .map_err(|e| VMError::StandardIO(format!("Could not flush output: {e}")))?;
@@ -362,9 +361,8 @@ impl VM {
             let char: u8 = char_memory
                 .try_into()
                 .map_err(|_| VMError::InvalidCharacter)?;
-            stdout().write_all(&[char]).map_err(|e| {
-                VMError::StandardIO(format!("Cannot write in Standard Outout: {}", e))
-            })?;
+            let char: char = char.into();
+            print!("{char}");
             address = address
                 .checked_add(1)
                 .ok_or(VMError::MemoryIndex(String::from("String too long")))?;
@@ -383,9 +381,11 @@ impl VM {
             .read_exact(&mut buffer)
             .map_err(|e| VMError::StandardIO(format!("Cannot read from Standard Input: {}", e)))?;
         self.set_register(0, buffer[0].into())?;
-        stdout()
-            .write_all(&buffer)
-            .map_err(|e| VMError::StandardIO(format!("Cannot write in Standard Outout: {}", e)))?;
+
+        // write char
+        let char: char = buffer[0].into();
+        print!("{char}");
+
         self.update_flags(0)?;
         stdout()
             .flush()
@@ -397,22 +397,22 @@ impl VM {
         let mut address = *self.get_register(0)?;
         let mut char_memory = self.mem_read(address.into())?;
         while char_memory != 0 {
-            let first_char = char_memory & 0b1111_1111;
             // write first char
+            let first_char = char_memory & 0b1111_1111;
             let char: u8 = first_char
                 .try_into()
                 .map_err(|_| VMError::InvalidCharacter)?;
-            stdout().write_all(&[char]).map_err(|e| {
-                VMError::StandardIO(format!("Cannot write in Standard Outout: {}", e))
-            })?;
-            let second_char = char_memory >> 8;
+            let char: char = char.into();
+            print!("{char}");
+
             // write second char
+            let second_char = char_memory >> 8;
             let char: u8 = second_char
                 .try_into()
                 .map_err(|_| VMError::InvalidCharacter)?;
-            stdout().write_all(&[char]).map_err(|e| {
-                VMError::StandardIO(format!("Cannot write in Standard Outout: {}", e))
-            })?;
+            let char: char = char.into();
+            print!("{char}");
+
             address = address
                 .checked_add(1)
                 .ok_or(VMError::MemoryIndex(String::from("String too long")))?;
@@ -433,6 +433,7 @@ impl VM {
         Ok(())
     }
 }
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -459,7 +460,7 @@ mod tests {
 
     #[test]
     fn add_to_registers_and_store() -> Result<(), VMError> {
-        let instr: u16 = 0b0001_0000_0100_0010;
+        let instr: u16 = 0b0001_0000_0100_0010; // ADD R0, R1, R2
         let mut vm = VM::new();
         vm.registers[1] = 1;
         vm.registers[2] = 3;
@@ -471,7 +472,7 @@ mod tests {
 
     #[test]
     fn add_to_negative_value() -> Result<(), VMError> {
-        let instr: u16 = 0b0001_0000_0100_0010;
+        let instr: u16 = 0b0001_0000_0100_0010; // ADD R0, R1, R2
         let mut vm = VM::new();
         vm.registers[1] = 1;
         vm.registers[2] = 0xFFFE; // -2
@@ -483,7 +484,7 @@ mod tests {
 
     #[test]
     fn add_to_zero() -> Result<(), VMError> {
-        let instr: u16 = 0b0001_0000_0100_0010;
+        let instr: u16 = 0b0001_0000_0100_0010; // ADD R0, R1, R2
         let mut vm = VM::new();
         vm.registers[1] = 1;
         vm.registers[2] = 0xFFFF;
@@ -495,7 +496,7 @@ mod tests {
 
     #[test]
     fn add_with_immediate() -> Result<(), VMError> {
-        let instr: u16 = 0b0001_0000_0110_0010; // add 2
+        let instr: u16 = 0b0001_0000_0110_0010; // ADD R0, R1, #2
         let mut vm = VM::new();
         vm.registers[1] = 1;
         vm.add(instr)?;
@@ -506,7 +507,7 @@ mod tests {
 
     #[test]
     fn and_register() -> Result<(), VMError> {
-        let instr: u16 = 0b0101_0000_0100_0010;
+        let instr: u16 = 0b0101_0000_0100_0010; // AND R0, R1, R2
         let mut vm = VM::new();
         vm.registers[1] = 0x0F0F;
         vm.registers[2] = 0xFFFF;
@@ -518,7 +519,7 @@ mod tests {
 
     #[test]
     fn and_with_immediate() -> Result<(), VMError> {
-        let instr: u16 = 0b0001_0000_0110_0111;
+        let instr: u16 = 0b0001_0000_0110_0111; // AND R0, R1, #7
         let mut vm = VM::new();
         vm.registers[1] = 0xFFFF;
         vm.and(instr)?;
@@ -529,7 +530,7 @@ mod tests {
 
     #[test]
     fn not_register() -> Result<(), VMError> {
-        let instr: u16 = 0b1001_0000_0111_1111;
+        let instr: u16 = 0b1001_0000_0111_1111; // NOT R0, R1
         let mut vm = VM::new();
         vm.registers[1] = 0x0F0F;
         vm.not(instr)?;
@@ -698,6 +699,7 @@ mod tests {
         vm.mem_write(0x0066, 0x4002)?; // f
         vm.mem_write(0x0067, 0x4003)?; // g
         vm.registers[0] = 0x4000;
+        // Shouldn't fail
         vm.puts()?;
         Ok(())
     }
@@ -710,6 +712,7 @@ mod tests {
         vm.mem_write(0x6968, 0x4002)?; // h i
         vm.mem_write(0x6B6A, 0x4003)?; // j k
         vm.registers[0] = 0x4000;
+        // Shouldn't fail
         vm.putsp()?;
         Ok(())
     }
@@ -725,7 +728,7 @@ mod tests {
     #[test]
     fn halt_executing_trap() -> Result<(), VMError> {
         let mut vm = VM::new();
-        let instr: u16 = 0b1111_0000_0010_0101;
+        let instr: u16 = 0b1111_0000_0010_0101; // TRAP HALT
         vm.execute(instr)?;
         assert!(!vm.running);
         Ok(())
