@@ -76,7 +76,7 @@ impl VM {
         self.memory.read_image(image_path)
     }
 
-    fn mem_read(&self, index: usize) -> Result<u16, VMError> {
+    fn mem_read(&mut self, index: usize) -> Result<u16, VMError> {
         self.memory.mem_read(index)
     }
 
@@ -330,7 +330,8 @@ impl VM {
                 "Overflow with offset in Load Indirect",
             )))?;
         let value_read = self.mem_read(address.into())?;
-        self.set_register(r0, self.mem_read(value_read.into())?)?;
+        let value = self.mem_read(value_read.into())?;
+        self.set_register(r0, value)?;
         self.update_flags(r0)?;
         Ok(())
     }

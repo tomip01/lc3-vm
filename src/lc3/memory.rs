@@ -1,8 +1,12 @@
-use std::fs;
+use std::{fs, io::Read};
 
 use super::{bytes::concatenate_bytes, vm::VMError};
 
 const MEMORY_MAX: usize = 1 << 16;
+// Keyboard status register
+const MR_KBSR: usize = 0xFE00;
+// Keyboard data register
+const MR_KBDR: usize = 0xFE02;
 
 pub struct Memory {
     memory: [u16; MEMORY_MAX],
@@ -53,7 +57,10 @@ impl Memory {
         Ok(())
     }
 
-    pub fn mem_read(&self, index: usize) -> Result<u16, VMError> {
+    pub fn mem_read(&mut self, index: usize) -> Result<u16, VMError> {
+        if index == MR_KBSR {
+            self.check_key()?;
+        }
         let value = self
             .memory
             .get(index)
@@ -71,6 +78,20 @@ impl Memory {
                 "Index out of bound when writing memory",
             )))?;
         *cell = value;
+        Ok(())
+    }
+
+    fn check_key(&mut self) -> Result<(), VMError> {
+        let mut buffer: [u8; 1] = [0];
+        std::io::stdin()
+            .read_exact(&mut buffer)
+            .map_err(|e| VMError::StandardIO(format!("Cannot read from Standard Input: {}", e)))?;
+        if buffer[0] != 0 {
+            self.mem_write(1 << 15, MR_KBSR)?;
+            self.mem_write(buffer[0].into(), MR_KBDR)?;
+        } else {
+            self.mem_write(0, MR_KBSR)?;
+        }
         Ok(())
     }
 }
