@@ -80,12 +80,14 @@ impl Memory {
         std::io::stdin()
             .read_exact(&mut buffer)
             .map_err(|e| VMError::StandardIO(format!("Cannot read from Standard Input: {}", e)))?;
+
         if buffer[0] != 0 {
             self.mem_write(1 << 15, MR_KBSR)?;
             self.mem_write(buffer[0].into(), MR_KBDR)?;
         } else {
             self.mem_write(0, MR_KBSR)?;
         }
+
         Ok(())
     }
 }

@@ -13,7 +13,6 @@ pub struct VM {
 }
 
 #[derive(Debug)]
-#[allow(dead_code)]
 pub enum VMError {
     ReadingFile(String),
     ConcatenatingBytes(String),
@@ -44,6 +43,9 @@ impl VM {
         }
     }
 
+    /// Get value stored in the register requested
+    ///
+    /// If register is not 0 to 7, an Error is returned
     fn get_register(&self, register_index: u16) -> Result<&u16, VMError> {
         let register_index: usize = register_index.into();
         self.registers
@@ -51,6 +53,9 @@ impl VM {
             .ok_or(VMError::InvalidRegister)
     }
 
+    /// Set a value in the register requested
+    ///
+    /// If register is not 0 to 7, an Error is returned
     fn set_register(&mut self, register_index: u16, value: u16) -> Result<(), VMError> {
         let store_register: usize = register_index.into();
         *self
@@ -60,6 +65,9 @@ impl VM {
         Ok(())
     }
 
+    /// Update flags based on the content of the register requested
+    ///
+    /// If register is not 0 to 7, an Error is returned
     fn update_flags(&mut self, register: u16) -> Result<(), VMError> {
         let value = *self.get_register(register)?;
         if value == 0x0 {
@@ -73,9 +81,7 @@ impl VM {
     }
 
     pub fn read_image(&mut self, image_path: &str) -> Result<(), VMError> {
-        self.memory.read_image(image_path)?;
-        self.running = true;
-        Ok(())
+        self.memory.read_image(image_path)
     }
 
     fn mem_read(&mut self, index: usize) -> Result<u16, VMError> {
@@ -86,7 +92,14 @@ impl VM {
         self.memory.mem_write(value, index)
     }
 
+    /// Main execution loop
+    ///
+    /// Read instruction, increments the PC, execute the instruction
+    /// Repeat this while the machine is in a state of running
     pub fn run(&mut self) -> Result<(), VMError> {
+        // start machine
+        self.running = true;
+
         while self.running {
             // Fetch
             let instr = self.mem_read(self.pc.into())?;
@@ -102,6 +115,7 @@ impl VM {
         Ok(())
     }
 
+    /// Based on the opcode from the instruction bits, executes the corresponding procedure
     fn execute(&mut self, instr: u16) -> Result<(), VMError> {
         let op: Opcode = (instr >> 12).try_into()?;
 

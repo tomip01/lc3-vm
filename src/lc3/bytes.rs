@@ -41,4 +41,12 @@ mod tests {
         assert_eq!(sign_extend(y, 5)?, 0x000F);
         Ok(())
     }
+
+    #[test]
+    fn concatenates_two_bytes() -> Result<(), VMError> {
+        let buffer: [u8; 2] = [0x12, 0x34];
+        let concatenated = concatenate_bytes(&buffer)?;
+        assert_eq!(concatenated, 0x1234);
+        Ok(())
+    }
 }
