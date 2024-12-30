@@ -1,7 +1,7 @@
 build:
 	cargo build
 run:
-	cargo run
+	cargo run $(FILEPATH)
 test:
 	cargo test
 check:

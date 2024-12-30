@@ -5,7 +5,7 @@ use std::env;
 fn main() -> Result<(), lc3::vm::VMError> {
     let args: Vec<String> = env::args().collect();
     if args.len() != 2 {
-        println!("Usage ./lc3-vm <object-file>");
+        println!("make run FILEPATH=<path/to/file>");
         std::process::exit(1);
     }
     let mut vm = VM::new();
