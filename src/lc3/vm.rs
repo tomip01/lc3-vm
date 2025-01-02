@@ -5,11 +5,11 @@ use super::{bytes::sign_extend, memory::Memory, opcode::Opcode, trap::TrapCode};
 const TOTAL_REGISTERS: usize = 8;
 
 pub struct VM {
-    registers: [u16; TOTAL_REGISTERS],
-    pc: u16,
-    cond: ConditionFlag,
-    running: bool,
-    memory: Memory,
+    pub registers: [u16; TOTAL_REGISTERS],
+    pub pc: u16,
+    pub cond: ConditionFlag,
+    pub running: bool,
+    pub memory: Memory,
 }
 
 #[derive(Debug)]
@@ -26,7 +26,7 @@ pub enum VMError {
 }
 
 #[derive(Debug, PartialEq)]
-enum ConditionFlag {
+pub enum ConditionFlag {
     Pos,
     Zro,
     Neg,
@@ -88,7 +88,7 @@ impl VM {
         self.memory.mem_read(index)
     }
 
-    fn mem_write(&mut self, value: u16, index: usize) -> Result<(), VMError> {
+    pub fn mem_write(&mut self, value: u16, index: usize) -> Result<(), VMError> {
         self.memory.mem_write(value, index)
     }
 
