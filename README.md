@@ -28,3 +28,8 @@ make build
 ```bash
 make run FILEPATH=<path/to/file>
 ```
+
+**Run example**
+```bash
+make run FILEPATH=./images/2048.obj
+```
