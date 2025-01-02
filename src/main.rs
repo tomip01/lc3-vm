@@ -55,19 +55,19 @@ fn main() -> Result<(), lc3::vm::VMError> {
     // run program
     if let Err(e) = vm.run() {
         match e {
-            lc3::vm::VMError::ReadingFile(s) => println!("Error on Reading file, {s}"),
+            lc3::vm::VMError::ReadingFile(s) => eprintln!("Error on Reading file, {s}"),
             lc3::vm::VMError::ConcatenatingBytes(s) => {
-                println!("Error on concatenating bytes: {s}")
+                eprintln!("Error on concatenating bytes: {s}")
             }
-            lc3::vm::VMError::Overflow => println!("Error on addition, overflow occurred"),
+            lc3::vm::VMError::Overflow => eprintln!("Error on addition, overflow occurred"),
             lc3::vm::VMError::MemoryIndex(s) => {
-                println!("Error on accessing memory, out of bounds: {s}")
+                eprintln!("Error on accessing memory, out of bounds: {s}")
             }
-            lc3::vm::VMError::InvalidOpcode => println!("Error on invalid Opcode"),
-            lc3::vm::VMError::InvalidRegister => println!("Error on invalid register access"),
-            lc3::vm::VMError::InvalidTrapCode => println!("Error on invalid trap code requested"),
-            lc3::vm::VMError::StandardIO(s) => println!("Error on standard input/output: {s}"),
-            lc3::vm::VMError::InvalidCharacter => println!("Error on invalid character read"),
+            lc3::vm::VMError::InvalidOpcode => eprintln!("Error on invalid Opcode"),
+            lc3::vm::VMError::InvalidRegister => eprintln!("Error on invalid register access"),
+            lc3::vm::VMError::InvalidTrapCode => eprintln!("Error on invalid trap code requested"),
+            lc3::vm::VMError::StandardIO(s) => eprintln!("Error on standard input/output: {s}"),
+            lc3::vm::VMError::InvalidCharacter => eprintln!("Error on invalid character read"),
         }
         std::process::exit(1);
     };
