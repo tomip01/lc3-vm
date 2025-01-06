@@ -43,9 +43,9 @@ impl VM {
         }
     }
 
-    /// Get value stored in the register requested
+    /// Get value stored in the register requested in `register_index`
     ///
-    /// If register is not 0 to 7, an Error is returned
+    /// If `register_index` is outside of the range from 0 to 7, an Error is returned
     fn get_register(&self, register_index: u16) -> Result<&u16, VMError> {
         let register_index: usize = register_index.into();
         self.registers
@@ -53,9 +53,9 @@ impl VM {
             .ok_or(VMError::InvalidRegister)
     }
 
-    /// Set a value in the register requested
+    /// Set the value `value` in the register requested in `register_index`
     ///
-    /// If register is not 0 to 7, an Error is returned
+    /// If `register_index` is outside of the range from 0 to 7, an Error is returned
     fn set_register(&mut self, register_index: u16, value: u16) -> Result<(), VMError> {
         let store_register: usize = register_index.into();
         *self
