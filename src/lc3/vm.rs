@@ -94,7 +94,7 @@ impl VM {
 
     /// Main execution loop
     ///
-    /// Read instruction, increments the PC, execute the instruction
+    /// Reads the instruction the PC points to, increments the PC and executes the read instruction
     /// Repeat this while the machine is in a state of running
     pub fn run(&mut self) -> Result<(), VMError> {
         // start machine
