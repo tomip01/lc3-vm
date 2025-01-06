@@ -121,7 +121,10 @@ impl VM {
         Ok(())
     }
 
-    /// Based on the opcode from the instruction bits, executes the corresponding procedure
+    /// The first 4 bits of the `instr` are casted as an Opcode
+    /// Based on the Opcode it executes a specific instruction.
+    ///
+    /// The other 12 bits are interpreted differently according each instruction
     fn execute(&mut self, instr: u16) -> Result<(), VMError> {
         let op: Opcode = (instr >> 12).try_into()?;
 
