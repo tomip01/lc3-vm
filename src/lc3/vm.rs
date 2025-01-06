@@ -137,12 +137,12 @@ impl VM {
             Opcode::And => self.and(instr),
             Opcode::Ldr => self.ldr(instr),
             Opcode::Str => self.str(instr),
-            Opcode::Rti => Err(VMError::InvalidOpcode),
+            Opcode::Rti => Err(VMError::InvalidOpcode), // unused, requires Supervisor privileges, User cannot execute it
             Opcode::Not => self.not(instr),
             Opcode::Ldi => self.ldi(instr),
             Opcode::Sti => self.sti(instr),
             Opcode::Jmp => self.jmp(instr),
-            Opcode::Res => Err(VMError::InvalidOpcode),
+            Opcode::Res => Err(VMError::InvalidOpcode), // unused (reserved)
             Opcode::Lea => self.lea(instr),
             Opcode::Trap => self.trap(instr),
         }
