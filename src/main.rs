@@ -41,6 +41,7 @@ fn main() -> Result<(), lc3::vm::VMError> {
     // collect file to execute
     let args: Vec<String> = env::args().collect();
     if args.len() != 2 {
+        println!("Usage:");
         println!("make run FILEPATH=<path/to/file>");
         std::process::exit(1);
     }
