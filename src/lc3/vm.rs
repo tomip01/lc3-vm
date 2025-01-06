@@ -5,11 +5,11 @@ use super::{bytes::sign_extend, memory::Memory, opcode::Opcode, trap::TrapCode};
 const TOTAL_REGISTERS: usize = 8;
 
 pub struct VM {
-    pub registers: [u16; TOTAL_REGISTERS],
-    pub pc: u16,
-    pub cond: ConditionFlag,
-    pub running: bool,
-    pub memory: Memory,
+    registers: [u16; TOTAL_REGISTERS],
+    pc: u16,
+    cond: ConditionFlag,
+    running: bool,
+    memory: Memory,
 }
 
 #[derive(Debug)]
@@ -95,7 +95,7 @@ impl VM {
     /// Main execution loop
     ///
     /// Reads the instruction the PC points to, increments the PC and executes the read instruction
-    /// Repeat this while the machine is in a state of running
+    /// Repeat this while the machine doesn't execute a trap instruction with the HALT routine (TRAP HALT)
     pub fn run(&mut self) -> Result<(), VMError> {
         // start machine
         self.running = true;
