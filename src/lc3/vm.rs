@@ -152,8 +152,8 @@ impl VM {
     ///
     /// ADD DR, SR1, SR2 or ADD DR, SR1, imm5
     ///
-    /// Stores in DR the addition between SR1 and SR2 or SR1 and imm5 sign extended
-    /// Bit 5 if it is 1, then is read as a imm5
+    /// If Bit 5 is 0, stores in DR the addition between SR1 and SR2.
+    /// If Bit 5 is 1, stores in DR the addition between SR1 and imm5 (sign extended).
     fn add(&mut self, instr: u16) -> Result<(), VMError> {
         let immediate_flag = (instr >> 5) & 1;
         let r0 = (instr >> 9) & 0b0111;
@@ -177,8 +177,8 @@ impl VM {
     ///
     /// AND DR, SR1, SR2 or AND DR, SR1, imm5
     ///
-    /// Stores in DR the and bitwise between SR1 and SR2 or SR1 and imm5 sign extended
-    /// Bit 5 if it is 1, then is read as a imm5
+    /// If Bit 5 is 0, stores in DR the and bitwise between SR1 and SR2.
+    /// If Bit 5 is 1, stores in DR the and bitwise between SR1 and imm5 (sign extended).
     fn and(&mut self, instr: u16) -> Result<(), VMError> {
         let immediate_flag = (instr >> 5) & 1;
         let r0 = (instr >> 9) & 0b0111;
