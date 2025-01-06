@@ -65,11 +65,17 @@ impl VM {
         Ok(())
     }
 
-    /// Update flags based on the content of the register requested
+    /// Update flags on `cond` member of the VM
+    /// based on the content of the register requested in `register_index`.
     ///
-    /// If register is not 0 to 7, an Error is returned
-    fn update_flags(&mut self, register: u16) -> Result<(), VMError> {
-        let value = *self.get_register(register)?;
+    /// * If the content is a zero, then the flag Zro is stored in `cond`
+    /// * If the content is a negative number (using two complement codification),
+    ///   then the flag Neg is stored in `cond`
+    /// * If the content is a positive number, then the flag Pos is stored in `cond`
+    ///
+    /// If `register_index` is outside of the range from 0 to 7, an Error is returned
+    fn update_flags(&mut self, register_index: u16) -> Result<(), VMError> {
+        let value = *self.get_register(register_index)?;
         if value == 0x0 {
             self.cond = ConditionFlag::Zro;
         } else if value >> 15 == 1 {
