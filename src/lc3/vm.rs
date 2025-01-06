@@ -216,12 +216,16 @@ impl VM {
     ///
     /// BRnzp PCoffset9
     ///
-    /// In bit 11 is to jump if is negative
-    /// In bit 10 is to jump if is zero
-    /// In bit 9 is to jump if positive
+    /// Bits 9, 10 and 11 are to set on which conditions make a jump if they match with the `cond` flag.
     ///
-    /// Stores in PC the addition of the PC and the sign extended PCoffset9 only if the condition flag
-    /// meets any of the bits that are 1
+    /// If bit 9 is 1 and `cond` is Pos, then jump.
+    /// If bit 10 is 1 and `cond` is Zro, then jump.
+    /// If bit 11 is 1 and `cond` is Neg, then jump.
+    ///
+    /// Note that you can set multiple bits
+    ///
+    /// Stores in PC the addition of the PC and the sign extended PCoffset9 only if
+    /// any of the conditions are met
     fn br(&mut self, instr: u16) -> Result<(), VMError> {
         let pc_offset = sign_extend(instr & 0b0001_1111_1111, 9)?;
         let cond_flag_instr = (instr >> 9) & 0b0111;
